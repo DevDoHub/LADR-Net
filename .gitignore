@@ -1,0 +1,37 @@
+
+
+# 忽略所有的 .log 文件
+*.log
+
+# 忽略 node_modules 目录
+node_modules/
+
+# 忽略 .env 文件
+.env
+
+# 忽略 dist 目录
+dist/
+
+# 忽略特定文件
+
+# 忽略特定目录
+__pycache__/
+
+# 忽略当前项目根目录下的 data 目录
+/data/
+*.bin
+*.pth
+
+logs/
+
+*.pth.tar
+
+*.pkl
+
+/tests/
+
+__pycache__/
+/data/
+*.pth
+*.pyc
+*.pyo
