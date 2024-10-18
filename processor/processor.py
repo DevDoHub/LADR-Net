@@ -35,13 +35,17 @@ def do_train(cfg,
         if torch.cuda.device_count() > 1 and cfg.MODEL.DIST_TRAIN:
             logger.info('Using {} GPUs for training'.format(torch.cuda.device_count()))
             model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank], find_unused_parameters=True)
-
+    model.to(local_rank)
     loss_meter = AverageMeter()
     acc_meter = AverageMeter()
 
     evaluator = R1_mAP_eval(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM)
     scaler = amp.GradScaler()
     # train
+
+    #TODO 写了个假的instruction
+    instruction = ('do_not_change_clothes',) * 64
+    
     for epoch in range(1, epochs + 1):
         start_time = time.time()
         loss_meter.reset()
@@ -56,8 +60,9 @@ def do_train(cfg,
             target_cam = target_cam.to(device)
             target_view = target_view.to(device)
             with amp.autocast(enabled=True):
-                score, feat, _ = model(img, label=target, cam_label=target_cam, view_label=target_view )
-                loss = loss_fn(score, feat, target, target_cam)
+                # score, feat, _ = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
+                feat, bio_f, clot_f, score, f_logits, c_logits, _, text_embeds_s = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
+                loss = loss_fn(score, feat, target, text_embeds_s, target_cam)
 
             scaler.scale(loss).backward()
 
@@ -120,7 +125,7 @@ def do_train(cfg,
                             img = img.to(device)
                             camids = camids.to(device)
                             target_view = target_view.to(device)
-                            feat, _ = model(img, cam_label=camids, view_label=target_view)
+                            feat, bio_f, clot_f, score, f_logits, c_logits, _, text_embeds_s = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
                             evaluator.update((feat, vid, camid))
                     cmc, mAP, _, _, _, _, _ = evaluator.compute()
                     logger.info("Validation Results - Epoch: {}".format(epoch))
@@ -135,7 +140,8 @@ def do_train(cfg,
                         img = img.to(device)
                         camids = camids.to(device)
                         target_view = target_view.to(device)
-                        feat, _ = model(img, cam_label=camids, view_label=target_view)
+                        # feat, _ = model(img, cam_label=camids, view_label=target_view)
+                        feat, bio_f, clot_f, score, f_logits, c_logits, _, text_embeds_s = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
                         evaluator.update((feat, vid, camid))
                 cmc, mAP, _, _, _, _, _ = evaluator.compute()
                 logger.info("Validation Results - Epoch: {}".format(epoch))

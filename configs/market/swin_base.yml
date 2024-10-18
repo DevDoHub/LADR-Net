@@ -20,7 +20,7 @@ INPUT:
 
 DATASETS:
   NAMES: ('market1501')
-  ROOT_DIR: ('path/to/market1501/datasets')
+  ROOT_DIR: ('/home/cat/project/SOLIDER-REID/data')
 
 DATALOADER:
   SAMPLER: 'softmax_triplet'

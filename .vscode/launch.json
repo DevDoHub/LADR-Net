@@ -1,0 +1,24 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Train Script",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/train.py",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            "args": [
+                "--config_file", "configs/market/swin_base.yml",
+                "MODEL.PRETRAIN_CHOICE", "self",
+                "MODEL.PRETRAIN_PATH", "./checkpoint_tea.pth",
+                "OUTPUT_DIR", "./log/market/swin_base",
+                "SOLVER.BASE_LR", "0.0002",
+                "SOLVER.OPTIMIZER_NAME", "SGD",
+                "MODEL.SEMANTIC_WEIGHT", "0.2"
+            ]
+        }
+    ]
+}

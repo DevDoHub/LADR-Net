@@ -16,7 +16,8 @@ def make_loss(cfg, num_classes):    # modified by gu
     center_criterion = CenterLoss(num_classes=num_classes, feat_dim=feat_dim, use_gpu=True)  # center loss
     if 'triplet' in cfg.MODEL.METRIC_LOSS_TYPE:
         if cfg.MODEL.NO_MARGIN:
-            triplet = TripletLoss()
+            # triplet = TripletLoss()
+            triplet_loss = TripletLoss(margin=0.3).cuda()
             print("using soft triplet loss for training")
         else:
             triplet = TripletLoss(cfg.SOLVER.MARGIN)  # triplet loss
@@ -35,7 +36,7 @@ def make_loss(cfg, num_classes):    # modified by gu
 
     #  elif cfg.DATALOADER.SAMPLER in ['softmax_triplet', 'id_triplet', 'img_triplet']:
     elif 'triplet' in sampler:
-        def loss_func(score, feat, target, target_cam):
+        def loss_func(score, feat, target, text_embeds_s, target_cam):
             if cfg.MODEL.METRIC_LOSS_TYPE == 'triplet':
                 if cfg.MODEL.IF_LABELSMOOTH == 'on':
                     if isinstance(score, list):
@@ -50,7 +51,7 @@ def make_loss(cfg, num_classes):    # modified by gu
                             TRI_LOSS = sum(TRI_LOSS) / len(TRI_LOSS)
                             TRI_LOSS = 0.5 * TRI_LOSS + 0.5 * triplet(feat[0], target)[0]
                     else:
-                            TRI_LOSS = triplet(feat, target, normalize_feature=cfg.SOLVER.TRP_L2)[0]
+                            TRI_LOSS = triplet_loss(feat, target, text_embeds_s)[0]
 
                     return cfg.MODEL.ID_LOSS_WEIGHT * ID_LOSS + \
                                cfg.MODEL.TRIPLET_LOSS_WEIGHT * TRI_LOSS
@@ -63,11 +64,11 @@ def make_loss(cfg, num_classes):    # modified by gu
                         ID_LOSS = F.cross_entropy(score, target)
 
                     if isinstance(feat, list):
-                            TRI_LOSS = [triplet(feats, target)[0] for feats in feat[1:]]
+                            TRI_LOSS = [triplet_loss(feats, target)[0] for feats in feat[1:]]
                             TRI_LOSS = sum(TRI_LOSS) / len(TRI_LOSS)
                             TRI_LOSS = 0.5 * TRI_LOSS + 0.5 * triplet(feat[0], target)[0]
                     else:
-                            TRI_LOSS = triplet(feat, target, normalize_feature=cfg.SOLVER.TRP_L2)[0]
+                            TRI_LOSS = triplet_loss(feat, target, text_embeds_s)[0]
 
                     return cfg.MODEL.ID_LOSS_WEIGHT * ID_LOSS + \
                                cfg.MODEL.TRIPLET_LOSS_WEIGHT * TRI_LOSS

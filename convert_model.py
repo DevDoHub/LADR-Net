@@ -7,6 +7,6 @@ import torch
 
 if __name__ == "__main__":
     input = sys.argv[1]
-    obj = torch.load(input, map_location="cpu")
+    obj = torch.load(input, map_location="cuda:0")
     obj = obj["teacher"]
     torch.save(obj,sys.argv[2])

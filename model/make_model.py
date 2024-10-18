@@ -1,11 +1,16 @@
 import torch
 import torch.nn as nn
+from torch.nn import functional as F
 from .backbones.resnet import ResNet, Bottleneck
 import copy
+from torch.nn import init
 from .backbones.vit_pytorch import vit_base_patch16_224_TransReID, vit_small_patch16_224_TransReID
 from .backbones.swin_transformer import swin_base_patch4_window7_224, swin_small_patch4_window7_224, swin_tiny_patch4_window7_224
 from loss.metric_learning import Arcface, Cosface, AMSoftmax, CircleLoss
 from .backbones.resnet_ibn_a import resnet50_ibn_a,resnet101_ibn_a
+
+from model.backbones.tokenization_bert import BertTokenizer
+from model.backbones.xbert import BertConfig, BertForMaskedLM
 
 def shuffle_unit(features, shift, group, begin=1):
 
@@ -188,6 +193,12 @@ class build_transformer(nn.Module):
             view_num = 0
 
         convert_weights = True if pretrain_choice == 'imagenet' else False
+
+        self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')#TODO
+        bert_config = BertConfig.from_json_file('./config_bert.json')
+        self.text_encoder = BertForMaskedLM.from_pretrained('bert-base-uncased', config=bert_config)
+        self.conv_layer = nn.Conv1d(in_channels=768, out_channels=1024, kernel_size=1)
+
         self.base = factory[cfg.MODEL.TRANSFORMER_TYPE](img_size=cfg.INPUT.SIZE_TRAIN, drop_path_rate=cfg.MODEL.DROP_PATH, drop_rate= cfg.MODEL.DROP_OUT,attn_drop_rate=cfg.MODEL.ATT_DROP_RATE, pretrained=model_path, convert_weights=convert_weights, semantic_weight=semantic_weight)
         if model_path != '':
             self.base.init_weights(model_path)
@@ -224,16 +235,72 @@ class build_transformer(nn.Module):
         self.bottleneck.apply(weights_init_kaiming)
 
         self.dropout = nn.Dropout(self.dropout_rate)
+        fusion_layers = []
 
+        self.num_features = 1024
+        for i in range(3):#TODO 3
+            # if net_config.attn_type=='fc':
+            fusion_layers.append(nn.Linear(self.num_features, self.num_features))
+            # else:
+                # fusion_layers.append(copy.deepcopy(self.visual_encoder.blocks[-i]))
+        self.fusion = nn.Sequential(*fusion_layers)
+        self.fusion_feat_bn = nn.BatchNorm1d(self.num_features)
+        self.fusion_feat_bn.bias.requires_grad_(False)
+        init.constant_(self.fusion_feat_bn.weight, 1)
+        init.constant_(self.fusion_feat_bn.bias, 0)
+
+        self.feat_bn = nn.BatchNorm1d(self.num_features)
+        self.feat_bn.bias.requires_grad_(False)
+        init.constant_(self.feat_bn.weight, 1)
+        init.constant_(self.feat_bn.bias, 0)
         #if pretrain_choice == 'self':
         #    self.load_param(model_path)
+    def dual_attn(self, bio_feats, clot_feats, project_feats=None, project_feats_down=None):
+        bio_class = bio_feats[:, 0:1]
+        clot_class = clot_feats[:, 0:1]
+        
+        bio_fusion = torch.cat([bio_class, clot_feats[:, 1:]], dim=1)
+        clot_fusion = torch.cat([clot_class, bio_feats[:, 1:]], dim=1)
 
-    def forward(self, x, label=None, cam_label= None, view_label=None):
-        global_feat, featmaps = self.base(x)
+        bio_fusion = self.fusion(bio_fusion)
+        clot_fusion = self.fusion(clot_fusion)
+        return bio_fusion, clot_fusion
+
+    def forward(self, x, instruction, label=None, cam_label= None, view_label=None):
+        instruction_text = self.tokenizer(instruction, padding='max_length', max_length=35, return_tensors="pt").to('cuda')
+        # extract text features
+        instruction_text = instruction_text.to('cuda')
+        text_output = self.text_encoder.bert(instruction_text.input_ids, attention_mask=instruction_text.attention_mask, return_dict=True, mode='text')
+        text_embeds = text_output.last_hidden_state
+        text_embeds = text_embeds.to('cuda')
+        self.text_proj = nn.Linear(768, 256).to('cuda')
+        text_feat = F.normalize(self.text_proj(text_embeds[:, 0, :]), dim=-1)
+
+        text_embeds_reshaped = text_embeds.permute(0, 2, 1)
+        text_embeds_conv = self.conv_layer (text_embeds_reshaped)  # 变为 [64, 1024, 70]
+        text_embeds_final = text_embeds_conv.permute(0, 2, 1).view(64, 35, 1024)
+        text_embeds_s = text_embeds_final[:,0]
+        
+        global_feat, featmaps = self.base(x)#global_feat全局特征 featmaps[-1]最后阶段输出的([64, 1024, 12, 4])
+        local_feat_all = featmaps[-1].reshape(64, 48, 1024)
+
+        image_embeds = torch.cat((global_feat.unsqueeze(1), local_feat_all), dim=1)#TODO
+
+        bio_fusion, clot_fusion = self.dual_attn(image_embeds, text_embeds_final)
+
+        feat = self.feat_bn(global_feat)
+        bio_f = self.fusion_feat_bn(bio_fusion[:, 0])#TODO
+        clot_f = self.fusion_feat_bn(clot_fusion[:, 0])
+
         if self.reduce_feat_dim:
-            global_feat = self.fcneck(global_feat)
+            logits = self.fcneck(global_feat)
+
+        bio_f = self.fusion_feat_bn(bio_fusion[:, 0])#TODO
+        clot_f = self.fusion_feat_bn(clot_fusion[:, 0])
         feat = self.bottleneck(global_feat)
         feat_cls = self.dropout(feat)
+        f_logits = self.classifier(bio_f)
+        c_logits = self.classifier(clot_f)
 
         if self.training:
             if self.ID_LOSS_TYPE in ('arcface', 'cosface', 'amsoftmax', 'circle'):
@@ -241,14 +308,15 @@ class build_transformer(nn.Module):
             else:
                 cls_score = self.classifier(feat_cls)
 
-            return cls_score, global_feat, featmaps  # global feature for triplet loss
+            return global_feat, bio_f, clot_f, cls_score, f_logits, c_logits, featmaps, text_embeds_s# global feature for triplet loss
+        #    return cls_score, global_feat, featmaps  # global feature for triplet loss  
         else:
             if self.neck_feat == 'after':
                 # print("Test with feature after BN")
                 return feat, featmaps
             else:
                 # print("Test with feature before BN")
-                return global_feat, featmaps
+                return global_feat,  featmaps
 
     def load_param(self, trained_path):
         param_dict = torch.load(trained_path, map_location = 'cpu')
