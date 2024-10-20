@@ -278,11 +278,13 @@ class build_transformer(nn.Module):
 
         text_embeds_reshaped = text_embeds.permute(0, 2, 1)
         text_embeds_conv = self.conv_layer (text_embeds_reshaped)  # 变为 [64, 1024, 70]
-        text_embeds_final = text_embeds_conv.permute(0, 2, 1).view(64, 35, 1024)
+        text_embeds_final = text_embeds_conv.permute(0, 2, 1)
         text_embeds_s = text_embeds_final[:,0]
         
+        
         global_feat, featmaps = self.base(x)#global_feat全局特征 featmaps[-1]最后阶段输出的([64, 1024, 12, 4])
-        local_feat_all = featmaps[-1].reshape(64, 48, 1024)
+        batch = featmaps[-1].size(0)
+        local_feat_all = featmaps[-1].view(batch, 1024, 12 * 4).permute(0, 2, 1)
 
         image_embeds = torch.cat((global_feat.unsqueeze(1), local_feat_all), dim=1)#TODO
 

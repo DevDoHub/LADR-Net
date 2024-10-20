@@ -22,7 +22,8 @@ def do_train(cfg,
              num_query, local_rank):
     log_period = cfg.SOLVER.LOG_PERIOD
     checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
-    eval_period = cfg.SOLVER.EVAL_PERIOD
+    # eval_period = cfg.SOLVER.EVAL_PERIOD
+    eval_period = 1#TODO
 
     device = "cuda"
     epochs = cfg.SOLVER.MAX_EPOCHS
@@ -44,7 +45,7 @@ def do_train(cfg,
     # train
 
     #TODO 写了个假的instruction
-    instruction = ('do_not_change_clothes',) * 64
+    
     
     for epoch in range(1, epochs + 1):
         start_time = time.time()
@@ -52,7 +53,9 @@ def do_train(cfg,
         acc_meter.reset()
         evaluator.reset()
         model.train()
+        n_iter_overall = 0
         for n_iter, (img, vid, target_cam, target_view) in enumerate(train_loader):
+            n_iter_overall += 1
             optimizer.zero_grad()
             optimizer_center.zero_grad()
             img = img.to(device)
@@ -60,6 +63,8 @@ def do_train(cfg,
             target_cam = target_cam.to(device)
             target_view = target_view.to(device)
             with amp.autocast(enabled=True):
+                batch = img.size(0)
+                instruction = ('do_not_change_clothes',) * batch
                 # score, feat, _ = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
                 feat, bio_f, clot_f, score, f_logits, c_logits, _, text_embeds_s = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
                 loss = loss_fn(score, feat, target, text_embeds_s, target_cam)
@@ -96,7 +101,7 @@ def do_train(cfg,
                                 .format(epoch, (n_iter + 1), len(train_loader), loss_meter.avg, acc_meter.avg, base_lr))
 
         end_time = time.time()
-        time_per_batch = (end_time - start_time) / (n_iter + 1)
+        time_per_batch = (end_time - start_time) / (n_iter_overall + 1)
         if cfg.SOLVER.WARMUP_METHOD == 'cosine':
             scheduler.step(epoch)
         else:
@@ -105,7 +110,7 @@ def do_train(cfg,
             pass
         else:
             logger.info("Epoch {} done. Time per epoch: {:.3f}[s] Speed: {:.1f}[samples/s]"
-                    .format(epoch, time_per_batch * (n_iter + 1), train_loader.batch_size / time_per_batch))
+                    .format(epoch, time_per_batch * (n_iter_overall + 1), train_loader.batch_size / time_per_batch))
 
         if epoch % checkpoint_period == 0:
             if cfg.MODEL.DIST_TRAIN:
@@ -140,8 +145,10 @@ def do_train(cfg,
                         img = img.to(device)
                         camids = camids.to(device)
                         target_view = target_view.to(device)
+                        batch = img.size(0)
+                        instruction = ('do_not_change_clothes',) * batch
                         # feat, _ = model(img, cam_label=camids, view_label=target_view)
-                        feat, bio_f, clot_f, score, f_logits, c_logits, _, text_embeds_s = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
+                        feat, _= model(img, instruction, cam_label=camids, view_label=target_view )
                         evaluator.update((feat, vid, camid))
                 cmc, mAP, _, _, _, _, _ = evaluator.compute()
                 logger.info("Validation Results - Epoch: {}".format(epoch))
@@ -176,7 +183,10 @@ def do_inference(cfg,
             img = img.to(device)
             camids = camids.to(device)
             target_view = target_view.to(device)
-            feat , _ = model(img, cam_label=camids, view_label=target_view)
+            # feat , _ = model(img, cam_label=camids, view_label=target_view)
+            batch = img.size(0)
+            instruction = ('do_not_change_clothes',) * batch
+            feat, bio_f, clot_f, score, f_logits, c_logits, _, text_embeds_s = model(img, instruction,  cam_label=camids, view_label=target_view )
             evaluator.update((feat, pid, camid))
             img_path_list.extend(imgpath)
 
