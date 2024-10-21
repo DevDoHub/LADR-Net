@@ -194,9 +194,21 @@ class build_transformer(nn.Module):
 
         convert_weights = True if pretrain_choice == 'imagenet' else False
 
-        self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')#TODO
+        
+        # save_path = '/root/SOLIDER-REID-PRO/bert-base-uncased1'
+        # self.tokenizer = BertTokenizer.from_pretrained(save_path, from_tf=True)  # 使用本地路径
+        # bert_config = BertConfig.from_json_file('./config_bert.json')
+        # self.text_encoder = BertForMaskedLM.from_pretrained(save_path, config=bert_config)  # 使用本地路径
+
+        save_path = '/root/SOLIDER-REID-PRO/bert-base-uncased1'
+        self.tokenizer = BertTokenizer.from_pretrained('google-bert/bert-base-uncased', cache_dir=save_path)#TODO
         bert_config = BertConfig.from_json_file('./config_bert.json')
-        self.text_encoder = BertForMaskedLM.from_pretrained('bert-base-uncased', config=bert_config)
+        self.text_encoder = BertForMaskedLM.from_pretrained('google-bert/bert-base-uncased', config=bert_config, cache_dir=save_path)
+
+        # self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')#TODO
+        # bert_config = BertConfig.from_json_file('./config_bert.json')
+        # self.text_encoder = BertForMaskedLM.from_pretrained('bert-base-uncased', config=bert_config)
+
         self.conv_layer = nn.Conv1d(in_channels=768, out_channels=1024, kernel_size=1)
 
         self.base = factory[cfg.MODEL.TRANSFORMER_TYPE](img_size=cfg.INPUT.SIZE_TRAIN, drop_path_rate=cfg.MODEL.DROP_PATH, drop_rate= cfg.MODEL.DROP_OUT,attn_drop_rate=cfg.MODEL.ATT_DROP_RATE, pretrained=model_path, convert_weights=convert_weights, semantic_weight=semantic_weight)

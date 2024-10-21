@@ -74,7 +74,7 @@ def make_dataloader(cfg):
                 num_workers=num_workers,
                 batch_sampler=batch_sampler,
                 collate_fn=train_collate_fn,
-                pin_memory=True,
+                pin_memory=False,
             )
         else:
             train_loader = DataLoader(

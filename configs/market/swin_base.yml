@@ -20,7 +20,7 @@ INPUT:
 
 DATASETS:
   NAMES: ('market1501')
-  ROOT_DIR: ('/home/cat/project/SOLIDER-REID/data')
+  ROOT_DIR: ('./data')
 
 DATALOADER:
   SAMPLER: 'softmax_triplet'
@@ -32,7 +32,7 @@ SOLVER:
   MAX_EPOCHS: 120
   BASE_LR: 0.0008
   WARMUP_EPOCHS: 20
-  IMS_PER_BATCH: 128
+  IMS_PER_BATCH: 32
   WARMUP_METHOD: 'cosine'
   LARGE_FC_LR: False
   CHECKPOINT_PERIOD: 120
@@ -44,7 +44,7 @@ SOLVER:
 
 TEST:
   EVAL: True
-  IMS_PER_BATCH: 128
+  IMS_PER_BATCH: 32
   RE_RANKING: False
   WEIGHT: ''
   NECK_FEAT: 'before'
