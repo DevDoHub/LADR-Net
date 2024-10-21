@@ -67,7 +67,7 @@ def do_train(cfg,
                 instruction = ('do_not_change_clothes',) * batch
                 # score, feat, _ = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
                 feat, bio_f, clot_f, score, f_logits, c_logits, _, text_embeds_s = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
-                loss = loss_fn(score, feat, target, text_embeds_s, target_cam)
+                loss = loss_fn(score, f_logits, c_logits, feat, bio_f, clot_f, target, text_embeds_s, target_cam)
 
             scaler.scale(loss).backward()
 
