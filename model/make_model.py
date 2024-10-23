@@ -330,7 +330,7 @@ class build_transformer(nn.Module):
                 return feat, featmaps
             else:
                 # print("Test with feature before BN")
-                return global_feat,  featmaps
+                return global_feat, bio_f, clot_f, f_logits, c_logits, featmaps, text_embeds_s
 
     def load_param(self, trained_path):
         param_dict = torch.load(trained_path, map_location = 'cpu')
