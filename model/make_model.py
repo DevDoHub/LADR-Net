@@ -245,11 +245,11 @@ class build_transformer(nn.Module):
         fusion_layers = []
 
         self.num_features = 1024
-        for i in range(3):#TODO 3
+        # for i in range(3):#TODO 3
             # if net_config.attn_type=='fc':
             # fusion_layers.append(nn.Linear(self.num_features, self.num_features))
             # else:
-            fusion_layers.append(self.TransReid)
+        fusion_layers.append(self.TransReid)
         self.fusion = nn.Sequential(*fusion_layers)
         self.fusion_feat_bn = nn.BatchNorm1d(self.num_features)
         self.fusion_feat_bn.bias.requires_grad_(False)
