@@ -36,7 +36,8 @@ def make_loss(cfg, num_classes):    # modified by gu
 
     #  elif cfg.DATALOADER.SAMPLER in ['softmax_triplet', 'id_triplet', 'img_triplet']:
     elif 'triplet' in sampler:
-        def loss_func(score, feat, target, text_embeds_s, target_cam):
+        def loss_func(score, f_logits, c_logits, feat, bio_f, clot_f, target, text_embeds_s, target_cam):
+            LOSS = 0
             if cfg.MODEL.METRIC_LOSS_TYPE == 'triplet':
                 if cfg.MODEL.IF_LABELSMOOTH == 'on':
                     if isinstance(score, list):
@@ -62,6 +63,7 @@ def make_loss(cfg, num_classes):    # modified by gu
                         ID_LOSS = 0.5 * ID_LOSS + 0.5 * F.cross_entropy(score[0], target)
                     else:
                         ID_LOSS = F.cross_entropy(score, target)
+                        LOSS += cfg.MODEL.ID_LOSS_WEIGHT * ID_LOSS
 
                     if isinstance(feat, list):
                             TRI_LOSS = [triplet_loss(feats, target)[0] for feats in feat[1:]]
@@ -69,9 +71,46 @@ def make_loss(cfg, num_classes):    # modified by gu
                             TRI_LOSS = 0.5 * TRI_LOSS + 0.5 * triplet(feat[0], target)[0]
                     else:
                             TRI_LOSS = triplet_loss(feat, target, text_embeds_s)[0]
+                            LOSS += cfg.MODEL.TRIPLET_LOSS_WEIGHT * TRI_LOSS
 
-                    return cfg.MODEL.ID_LOSS_WEIGHT * ID_LOSS + \
-                               cfg.MODEL.TRIPLET_LOSS_WEIGHT * TRI_LOSS
+                if 'bio' in cfg.MODEL.FUSION_BRANCH :
+                    if isinstance(f_logits, list):
+                        BIO_ID_LOSS = [F.cross_entropy(scor, target) for scor in score[1:]]
+                        BIO_ID_LOSS = sum(ID_LOSS) / len(ID_LOSS)
+                        BIO_ID_LOSS = 0.5 * ID_LOSS + 0.5 * F.cross_entropy(score[0], target)
+                    else:
+                        BIO_ID_LOSS = F.cross_entropy(f_logits, target)
+                        LOSS += cfg.MODEL.BIO_ID_LOSS_WEIGHT * BIO_ID_LOSS
+
+
+                    if isinstance(bio_f, list):
+                            BIO_TRI_LOSS = [triplet_loss(feats, target)[0] for feats in feat[1:]]
+                            BIO_TRI_LOSS = sum(TRI_LOSS) / len(TRI_LOSS)
+                            BIO_TRI_LOSS = 0.5 * TRI_LOSS + 0.5 * triplet(feat[0], target)[0]
+                    else:
+                            BIO_TRI_LOSS = triplet_loss(bio_f, target, text_embeds_s)[0] 
+                            LOSS += cfg.MODEL.BIO_TRIPLET_LOSS_WEIGHT * BIO_TRI_LOSS   
+
+                if 'clot' in cfg.MODEL.FUSION_BRANCH :
+                    if isinstance(f_logits, list):
+                        CLOT_ID_LOSS = [F.cross_entropy(c_logits, target) for scor in score[1:]]
+                        CLOT_ID_LOSS = sum(ID_LOSS) / len(ID_LOSS)
+                        CLOT_ID_LOSS = 0.5 * ID_LOSS + 0.5 * F.cross_entropy(score[0], target)
+                    else:
+                        CLOT_ID_LOSS = F.cross_entropy(c_logits, target)
+                        LOSS += cfg.MODEL.CLOT_ID_LOSS_WEIGHT * CLOT_ID_LOSS
+
+                    if isinstance(clot_f, list):
+                            CLOT_TRI_LOSS = [triplet_loss(feats, target)[0] for feats in feat[1:]]
+                            CLOT_TRI_LOSS = sum(TRI_LOSS) / len(TRI_LOSS)
+                            CLOT_TRI_LOSS = 0.5 * TRI_LOSS + 0.5 * triplet(feat[0], target)[0]
+                    else:
+                            CLOT_TRI_LOSS = triplet_loss(clot_f, target, text_embeds_s)[0] 
+                            LOSS += cfg.MODEL.CLOT_TRIPLET_LOSS_WEIGHT * CLOT_TRI_LOSS
+
+                return LOSS
+            # return cfg.MODEL.ID_LOSS_WEIGHT * ID_LOSS + \
+                    #            cfg.MODEL.TRIPLET_LOSS_WEIGHT * TRI_LOSS
             else:
                 print('expected METRIC_LOSS_TYPE should be triplet'
                       'but got {}'.format(cfg.MODEL.METRIC_LOSS_TYPE))
