@@ -1,0 +1,133 @@
+2024-11-06 19:26:51 transreid INFO: Saving model in the path :./log/real2/swin_base
+2024-11-06 19:26:51 transreid INFO: Loaded configuration file configs/real2/swin_base.yml
+2024-11-06 19:26:51 transreid INFO: Running with config:
+DATALOADER:
+  NUM_INSTANCE: 4
+  NUM_WORKERS: 0
+  REMOVE_TAIL: 0
+  SAMPLER: softmax_triplet
+DATASETS:
+  NAMES: real2
+  ROOT_DIR: /home/cat/project/SOLIDER-REID-PRO/data
+  ROOT_TRAIN_DIR: ../data
+  ROOT_VAL_DIR: ../data
+INPUT:
+  PADDING: 10
+  PIXEL_MEAN: [0.5, 0.5, 0.5]
+  PIXEL_STD: [0.5, 0.5, 0.5]
+  PROB: 0.5
+  RE_PROB: 0.5
+  SIZE_TEST: [384, 128]
+  SIZE_TRAIN: [384, 128]
+JSON_DIR: ./data/real2/datalist/runner_real2_v1_gpt.json
+MODEL:
+  ATT_DROP_RATE: 0.0
+  BIO_ID_LOSS_WEIGHT: 0.1
+  BIO_TRIPLET_LOSS_WEIGHT: 0.1
+  CLOT_ID_LOSS_WEIGHT: 0.1
+  CLOT_TRIPLET_LOSS_WEIGHT: 0.1
+  COS_LAYER: False
+  DEVICE: cuda
+  DEVICE_ID: 0
+  DEVIDE_LENGTH: 4
+  DIST_TRAIN: False
+  DROPOUT_RATE: 0.0
+  DROP_OUT: 0.0
+  DROP_PATH: 0.1
+  FEAT_DIM: 512
+  FUSION_BRANCH: bio+clot
+  GEM_POOLING: False
+  ID_LOSS_TYPE: softmax
+  ID_LOSS_WEIGHT: 1.0
+  IF_LABELSMOOTH: off
+  IF_WITH_CENTER: no
+  JPM: False
+  LAST_STRIDE: 1
+  METRIC_LOSS_TYPE: triplet
+  NAME: transformer
+  NECK: bnneck
+  NO_MARGIN: True
+  PRETRAIN_CHOICE: self
+  PRETRAIN_HW_RATIO: 2
+  PRETRAIN_PATH: ./checkpoint_tea.pth
+  REDUCE_FEAT_DIM: False
+  RE_ARRANGE: True
+  SEMANTIC_WEIGHT: 0.2
+  SHIFT_NUM: 5
+  SHUFFLE_GROUP: 2
+  SIE_CAMERA: False
+  SIE_COE: 3.0
+  SIE_VIEW: False
+  STEM_CONV: False
+  STRIDE_SIZE: [16, 16]
+  TRANSFORMER_TYPE: swin_base_patch4_window7_224
+  TRIPLET_LOSS_WEIGHT: 1.0
+OUTPUT_DIR: ./log/real2/swin_base
+SOLVER:
+  BASE_LR: 0.0002
+  BIAS_LR_FACTOR: 2
+  CENTER_LOSS_WEIGHT: 0.0005
+  CENTER_LR: 0.5
+  CHECKPOINT_PERIOD: 120
+  COSINE_MARGIN: 0.5
+  COSINE_SCALE: 30
+  EVAL_PERIOD: 10
+  GAMMA: 0.1
+  IMS_PER_BATCH: 8
+  LARGE_FC_LR: False
+  LOG_PERIOD: 20
+  MARGIN: 0.3
+  MAX_EPOCHS: 120
+  MOMENTUM: 0.9
+  OPTIMIZER_NAME: SGD
+  SEED: 1234
+  STEPS: (40, 70)
+  TRP_L2: False
+  WARMUP_EPOCHS: 20
+  WARMUP_FACTOR: 0.01
+  WARMUP_METHOD: cosine
+  WEIGHT_DECAY: 0.0001
+  WEIGHT_DECAY_BIAS: 0.0001
+TEST:
+  DIST_MAT: dist_mat.npy
+  EVAL: True
+  FEAT_NORM: yes
+  IMS_PER_BATCH: 8
+  NECK_FEAT: before
+  RE_RANKING: False
+  WEIGHT: 
+2024-11-06 19:26:51 transreid.check INFO: Dataset statistics:
+2024-11-06 19:26:51 transreid.check INFO:   ----------------------------------------
+2024-11-06 19:26:51 transreid.check INFO:   subset   | # ids | # images | # cameras
+2024-11-06 19:26:51 transreid.check INFO:   ----------------------------------------
+2024-11-06 19:26:51 transreid.check INFO:   train    |     1 |       16 |         1
+2024-11-06 19:26:51 transreid.check INFO:   query    |    96 |     5545 |         1
+2024-11-06 19:26:51 transreid.check INFO:   gallery  |     1 |       16 |         1
+2024-11-06 19:26:51 transreid.check INFO:   ----------------------------------------
+2024-11-06 19:26:57 transreid INFO: ===========using cosine learning rate=======
+2024-11-06 19:26:57 transreid.train INFO: start training
+2024-11-06 19:26:57 transreid.train INFO: Epoch 1 done. Time per epoch: 0.002[s] Speed: 5272.5[samples/s]
+2024-11-06 19:28:03 transreid.train INFO: Validation Results - Epoch: 1
+2024-11-06 19:28:03 transreid.train INFO: mAP: 100.0%
+2024-11-06 19:28:03 transreid.train INFO: CMC curve, Rank-1  :100.0%
+2024-11-06 19:28:03 transreid.train INFO: CMC curve, Rank-5  :100.0%
+2024-11-06 19:28:03 transreid.train INFO: CMC curve, Rank-10 :100.0%
+2024-11-06 19:28:03 transreid.train INFO: Epoch 2 done. Time per epoch: 0.002[s] Speed: 3923.1[samples/s]
+2024-11-06 19:29:08 transreid.train INFO: Validation Results - Epoch: 2
+2024-11-06 19:29:08 transreid.train INFO: mAP: 100.0%
+2024-11-06 19:29:08 transreid.train INFO: CMC curve, Rank-1  :100.0%
+2024-11-06 19:29:08 transreid.train INFO: CMC curve, Rank-5  :100.0%
+2024-11-06 19:29:08 transreid.train INFO: CMC curve, Rank-10 :100.0%
+2024-11-06 19:29:08 transreid.train INFO: Epoch 3 done. Time per epoch: 0.002[s] Speed: 3951.3[samples/s]
+2024-11-06 19:30:14 transreid.train INFO: Validation Results - Epoch: 3
+2024-11-06 19:30:14 transreid.train INFO: mAP: 100.0%
+2024-11-06 19:30:14 transreid.train INFO: CMC curve, Rank-1  :100.0%
+2024-11-06 19:30:14 transreid.train INFO: CMC curve, Rank-5  :100.0%
+2024-11-06 19:30:14 transreid.train INFO: CMC curve, Rank-10 :100.0%
+2024-11-06 19:30:14 transreid.train INFO: Epoch 4 done. Time per epoch: 0.002[s] Speed: 3929.1[samples/s]
+2024-11-06 19:31:19 transreid.train INFO: Validation Results - Epoch: 4
+2024-11-06 19:31:19 transreid.train INFO: mAP: 100.0%
+2024-11-06 19:31:19 transreid.train INFO: CMC curve, Rank-1  :100.0%
+2024-11-06 19:31:19 transreid.train INFO: CMC curve, Rank-5  :100.0%
+2024-11-06 19:31:19 transreid.train INFO: CMC curve, Rank-10 :100.0%
+2024-11-06 19:31:19 transreid.train INFO: Epoch 5 done. Time per epoch: 0.002[s] Speed: 3727.4[samples/s]
