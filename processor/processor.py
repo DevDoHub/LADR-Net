@@ -54,7 +54,7 @@ def do_train(cfg,
         evaluator.reset()
         model.train()
         n_iter_overall = 0
-        for n_iter, (img, vid, target_cam, target_view) in enumerate(train_loader):
+        for n_iter, (img, instruction, vid, target_cam, target_view) in enumerate(train_loader):
             n_iter_overall += 1
             optimizer.zero_grad()
             optimizer_center.zero_grad()
@@ -63,8 +63,8 @@ def do_train(cfg,
             target_cam = target_cam.to(device)
             target_view = target_view.to(device)
             with amp.autocast(enabled=True):
-                batch = img.size(0)
-                instruction = ('do_not_change_clothes',) * batch
+                # batch = img.size(0)
+                # instruction = ('do_not_change_clothes',) * batch
                 # score, feat, _ = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
                 feat, bio_f, clot_f, score, f_logits, c_logits, _, text_embeds_s = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
                 loss = loss_fn(score, f_logits, c_logits, feat, bio_f, clot_f, target, text_embeds_s, target_cam)
@@ -140,13 +140,13 @@ def do_train(cfg,
                     torch.cuda.empty_cache()
             else:
                 model.eval()
-                for n_iter, (img, vid, camid, camids, target_view, _) in enumerate(val_loader):
+                for n_iter, (img, instruction, vid, camid, camids, target_view, _) in enumerate(val_loader):
                     with torch.no_grad():
                         img = img.to(device)
                         camids = camids.to(device)
                         target_view = target_view.to(device)
-                        batch = img.size(0)
-                        instruction = ('do_not_change_clothes',) * batch
+                        #batch = img.size(0)
+                        #instruction = ('do_not_change_clothes',) * batch
                         # feat, _ = model(img, cam_label=camids, view_label=target_view)
                         feat, bio_f, clot_f, f_logits, c_logits, _, text_embeds_s = model(img, instruction, cam_label=camids, view_label=target_view )
                         bio_clot_feat = torch.cat([bio_f, clot_f], dim=1)
