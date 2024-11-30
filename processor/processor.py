@@ -1,5 +1,6 @@
 import logging
 import os
+import pickle
 import cv2
 import numpy as np
 import time
@@ -157,20 +158,42 @@ def do_train(cfg,
                         # 更新评估器
                         evaluator.update((feat, vid, camid))
 
-                        # # 在评估时可视化第一个样本的注意力
-                        # if n_iter == 0:  # 只在第一次迭代时进行可视化（或每个批次）
-                        #     # 假设 img[0] 和 attn_weights[0] 是你想要可视化的样本
-                        #     image = img[0].cpu().numpy().transpose(1, 2, 0)  # 转换为 [H, W, C] 格式
-                        #     instruction_text = instruction[0]  # 获取对应的文本描述
-                        #     visualize_attention(image, attn_weights[0], instruction_text)
+                        # 在评估时可视化第一个样本的注意力
+                        if n_iter == 0:  # 只在第一次迭代时进行可视化（或每个批次）
+
+                            image = img[0].cpu().numpy().transpose(1, 2, 0)  # 转换为 [H, W, C] 格式
+                            instruction_text = instruction[0]  # 获取对应的文本描述
+
+                            data_to_save = {
+                                'image': image,
+                                'attn_weights': attn_weights[0],
+                                'instruction_text': instruction_text
+                            }
+
+                            with open(f'saved_data{epoch}.pkl', 'wb') as f:
+                                pickle.dump(data_to_save, f)
+
+                            # 假设 img[0] 和 attn_weights[0] 是你想要可视化的样本
+                            visualize_attention(image, attn_weights[0], instruction_text)
 
                         # 在每个批次中展示多个样本的注意力
-                        batch_size = img.size(0)  # 获取当前批次的样本数
-                        for i in range(batch_size):  # 遍历每个样本
-                            image = img[i].cpu().numpy().transpose(1, 2, 0)  # 获取第 i 个样本，并转换为 [H, W, C]
-                            instruction_text = instruction[i]  # 获取对应的文本描述
-                            # 可视化并保存该样本的注意力
-                            visualize_attention(image, attn_weights[i], instruction_text, save_dir="attention_maps")    
+                        # batch_size = img.size(0)  # 获取当前批次的样本数
+                        # for i in range(batch_size):  # 遍历每个样本
+                        #     image = img[i].cpu().numpy().transpose(1, 2, 0)  # 获取第 i 个样本，并转换为 [H, W, C]
+                        #     instruction_text = instruction[i]  # 获取对应的文本描述
+                        #     # 可视化并保存该样本的注意力
+
+                        #     # 假设 image, attn_weights[i], instruction_text 是你要保存的数据
+                        #     data_to_save = {
+                        #         'image': image,
+                        #         'attn_weights': attn_weights[i],
+                        #         'instruction_text': instruction_text
+                        #     }
+
+                        #     with open(f'saved_data{i}.pkl', 'wb') as f:
+                        #         pickle.dump(data_to_save, f)
+
+                        #     visualize_attention(image, attn_weights[i], instruction_text, save_dir="attention_maps")    
 
 
                 # 计算评估指标
