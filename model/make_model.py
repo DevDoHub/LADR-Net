@@ -13,6 +13,44 @@ from model.backbones.tokenization_bert import BertTokenizer
 from model.backbones.xbert import BertConfig, BertForMaskedLM
 from model.backbones.vit_pytorch import Block
 
+import torch.nn.functional as F
+
+
+class CrossAttention(nn.Module):
+    def __init__(self, embed_dim, num_heads):
+        super(CrossAttention, self).__init__()
+        self.multihead_attn = nn.MultiheadAttention(embed_dim, num_heads)
+
+    def forward(self, img_features, text_features):
+        # img_features: (batch_size, seq_len, embed_dim) -> Query
+        # text_features: (batch_size, seq_len, embed_dim) -> Key, Value
+        attn_output, _ = self.multihead_attn(img_features, text_features, text_features)
+        return attn_output
+
+
+class SemanticAttention(nn.Module):
+    def __init__(self, dim_model):
+        super(SemanticAttention, self).__init__()
+        self.text_proj = nn.Linear(768, dim_model)  # 投影到与视觉特征相同的维度
+        self.softmax = nn.Softmax(dim=-1)
+
+    def forward(self, image_feats, text_feats):
+        # 对文本嵌入进行投影
+        text_feats_proj = self.text_proj(text_feats)  # (batch, text_len, dim_model)
+        
+        # 计算图像特征与文本特征之间的相似性
+        attn_scores = torch.bmm(image_feats, text_feats_proj.permute(0, 2, 1))  # (batch, img_len, text_len)
+
+        # 对相似性得分进行归一化处理（softmax）
+        attn_weights = self.softmax(attn_scores)  # (batch, img_len, text_len)
+
+        # 计算加权后的图像特征
+        image_feats_attended = torch.bmm(attn_weights, text_feats_proj)  # (batch, img_len, dim_model)
+
+        # 返回加权后的图像特征和注意力权重
+        return image_feats_attended, attn_weights
+
+
 def shuffle_unit(features, shift, group, begin=1):
 
     batchsize = features.size(0)
@@ -274,50 +312,62 @@ class build_transformer(nn.Module):
         init.constant_(self.feat_bn.bias, 0)
         #if pretrain_choice == 'self':
         #    self.load_param(model_path)
-    def dual_attn(self, bio_feats, clot_feats, project_feats=None, project_feats_down=None):
-        bio_class = bio_feats[:, 0:1]
-        clot_class = clot_feats[:, 0:1]
-        
-        bio_fusion = torch.cat([bio_class, clot_feats[:, 1:]], dim=1)
-        clot_fusion = torch.cat([clot_class, bio_feats[:, 1:]], dim=1)
 
-        bio_fusion = self.fusion(bio_fusion)
-        clot_fusion = self.fusion(clot_fusion)
+        self.cross_attention_bio = CrossAttention(embed_dim=1024, num_heads=8)  # 生物特征
+        self.cross_attention_clot = CrossAttention(embed_dim=1024, num_heads=8)  # 衣物特征
+
+    def dual_attn(self, image_embeds, text_embeds_final):
+        # print(f"image_embeds shape: {image_embeds.shape}")
+        # print(f"text_embeds_final shape: {text_embeds_final.shape}")
+        
+        # 调整 text_embeds_final 的维度
+        self.text_proj = nn.Linear(768, 1024).to('cuda')
+        text_embeds_final = self.text_proj(text_embeds_final)
+        # print(f"text_embeds_final after projection shape: {text_embeds_final.shape}")
+        
+        # 调整 text_embeds_final 的中间维度
+        text_embeds_final = text_embeds_final.permute(0, 2, 1).contiguous()
+        text_embeds_final = F.interpolate(text_embeds_final, size=image_embeds.shape[1], mode='nearest')
+        text_embeds_final = text_embeds_final.permute(0, 2, 1).contiguous()
+        # print(f"text_embeds_final after interpolation shape: {text_embeds_final.shape}")
+        
+        # image_embeds shape: torch.Size([32, 49, 1024])
+        # text_embeds_final shape: torch.Size([32, 35, 768])
+        # text_embeds_final after projection shape: torch.Size([32, 35, 1024])
+        # text_embeds_final after interpolation shape: torch.Size([32, 49, 1024])
+
+        # 使用交叉注意力机制
+        bio_fusion = self.cross_attention_bio(image_embeds, text_embeds_final)  # 生物信息的注意力
+        clot_fusion = self.cross_attention_clot(image_embeds, text_embeds_final)  # 衣物信息的注意力
+
         return bio_fusion, clot_fusion
 
     def forward(self, x, instruction, label=None, cam_label= None, view_label=None):
+        # 文本特征提取
         instruction_text = self.tokenizer(instruction, truncation=True, padding='max_length', max_length=35, return_tensors="pt").to('cuda')
-        # extract text features
-        instruction_text = instruction_text.to('cuda')
         text_output = self.text_encoder.bert(instruction_text.input_ids, attention_mask=instruction_text.attention_mask, return_dict=True, mode='text')
         text_embeds = text_output.last_hidden_state
-        text_embeds = text_embeds.to('cuda')
         self.text_proj = nn.Linear(768, 256).to('cuda')
         text_feat = F.normalize(self.text_proj(text_embeds[:, 0, :]), dim=-1)
 
-        text_embeds_reshaped = text_embeds.permute(0, 2, 1)
-        text_embeds_conv = self.conv_layer (text_embeds_reshaped)  # 变为 [64, 1024, 70]
-        text_embeds_final = text_embeds_conv.permute(0, 2, 1)
-        text_embeds_s = text_embeds_final[:,0]
-        
-        
-        global_feat, featmaps = self.base(x)#global_feat全局特征 featmaps[-1]最后阶段输出的([64, 1024, 12, 4])
+        # 图像特征提取
+        global_feat, featmaps = self.base(x)
         batch = featmaps[-1].size(0)
         local_feat_all = featmaps[-1].view(batch, 1024, 12 * 4).permute(0, 2, 1)
 
-        image_embeds = torch.cat((global_feat.unsqueeze(1), local_feat_all), dim=1)#TODO
+        image_embeds = torch.cat((global_feat.unsqueeze(1), local_feat_all), dim=1)  # 图像特征拼接
 
-        bio_fusion, clot_fusion = self.dual_attn(image_embeds, text_embeds_final)
+        # 融合图像与文本特征，使用交叉注意力
+        bio_fusion, clot_fusion = self.dual_attn(image_embeds, text_embeds)
 
+        # 特征处理
         feat = self.feat_bn(global_feat)
-        bio_f = self.fusion_feat_bn(bio_fusion[:, 0])#TODO
-        clot_f = self.fusion_feat_bn(clot_fusion[:, 0])
+        bio_f = self.fusion_feat_bn(bio_fusion[:, 0])  # 生物特征
+        clot_f = self.fusion_feat_bn(clot_fusion[:, 0])  # 衣物特征
 
         if self.reduce_feat_dim:
             logits = self.fcneck(global_feat)
 
-        bio_f = self.fusion_feat_bn(bio_fusion[:, 0])#TODO
-        clot_f = self.fusion_feat_bn(clot_fusion[:, 0])
         feat = self.bottleneck(global_feat)
         feat_cls = self.dropout(feat)
         f_logits = self.classifier(bio_f)
@@ -329,16 +379,14 @@ class build_transformer(nn.Module):
             else:
                 cls_score = self.classifier(feat_cls)
 
-            return global_feat, bio_f, clot_f, cls_score, f_logits, c_logits, featmaps, text_embeds_s# global feature for triplet loss
-        #    return cls_score, global_feat, featmaps  # global feature for triplet loss  
+            return global_feat, bio_f, clot_f, cls_score, f_logits, c_logits, featmaps, text_feat  # 返回特征用于后续的损失计算
+
         else:
             if self.neck_feat == 'after':
-                # print("Test with feature after BN")
                 return feat, featmaps
             else:
-                # print("Test with feature before BN")
-                return global_feat, bio_f, clot_f, f_logits, c_logits, featmaps, text_embeds_s
-
+                return global_feat, bio_f, clot_f, f_logits, c_logits, featmaps, text_feat
+                
     def load_param(self, trained_path):
         param_dict = torch.load(trained_path, map_location = 'cpu')
         for i in param_dict:
