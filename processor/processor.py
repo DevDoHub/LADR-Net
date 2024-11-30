@@ -150,7 +150,7 @@ def do_train(cfg,
                         # feat, _ = model(img, cam_label=camids, view_label=target_view)
                         feat, bio_f, clot_f, f_logits, c_logits, _, text_embeds_s = model(img, instruction, cam_label=camids, view_label=target_view )
                         bio_clot_feat = torch.cat([bio_f, clot_f], dim=1)
-                        evaluator.update((bio_clot_feat, vid, camid))
+                        evaluator.update((feat, vid, camid))
                 cmc, mAP, _, _, _, _, _ = evaluator.compute()
                 logger.info("Validation Results - Epoch: {}".format(epoch))
                 logger.info("mAP: {:.1%}".format(mAP))
