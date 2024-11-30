@@ -9,6 +9,20 @@ from .softmax_loss import CrossEntropyLabelSmooth, LabelSmoothingCrossEntropy
 from .triplet_loss import TripletLoss
 from .center_loss import CenterLoss
 
+def attention_loss(attn_weights, target_attn):
+    """
+    使用 KL 散度或均方误差计算注意力损失。
+    """
+    target_attn = target_attn / target_attn.sum(dim=-1, keepdim=True)  # 归一化目标注意力
+    loss = F.kl_div(attn_weights.log(), target_attn, reduction='batchmean')  # KL 散度
+    return loss
+
+def attention_regularization_loss(attn_weights):
+    """
+    使用负熵正则化，让注意力更加集中。
+    """
+    entropy = -(attn_weights * attn_weights.log()).sum(dim=-1)  # 注意力分布的熵
+    return entropy.mean()  # 平均熵作为损失
 
 def make_loss(cfg, num_classes):    # modified by gu
     sampler = cfg.DATALOADER.SAMPLER
@@ -36,7 +50,7 @@ def make_loss(cfg, num_classes):    # modified by gu
 
     #  elif cfg.DATALOADER.SAMPLER in ['softmax_triplet', 'id_triplet', 'img_triplet']:
     elif 'triplet' in sampler:
-        def loss_func(score, f_logits, c_logits, feat, bio_f, clot_f, target, text_embeds_s, target_cam):
+        def loss_func(score, f_logits, c_logits, feat, bio_f, clot_f, target, text_embeds_s, target_cam, attn_weights=None, target_attn=None):
             LOSS = 0
 
             # 1. 分类损失（ID Loss）
@@ -76,6 +90,16 @@ def make_loss(cfg, num_classes):    # modified by gu
                 # CLOT 三元组损失（避免重复计算）
                 CLOT_TRI_LOSS = triplet_loss(clot_f, target, text_embeds_s)[0]
                 LOSS += cfg.MODEL.CLOT_TRIPLET_LOSS_WEIGHT * CLOT_TRI_LOSS
+
+            # if attn_weights is not None and target_attn is not None:
+            #     ATTENTION_LOSS = attention_loss(attn_weights, target_attn)
+            #     LOSS += 1 * ATTENTION_LOSS
+            #     # LOSS += cfg.MODEL.ATTENTION_LOSS_WEIGHT * ATTENTION_LOSS
+
+            if attn_weights is not None:
+                ATTENTION_REG_LOSS = attention_regularization_loss(attn_weights)
+                LOSS += 1 * ATTENTION_REG_LOSS
+                
 
             return LOSS
 

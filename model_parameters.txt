@@ -654,6 +654,8 @@ fusion_feat_bn.weight
 fusion_feat_bn.bias
 feat_bn.weight
 feat_bn.bias
+text_proj.weight
+text_proj.bias
 cross_attention_bio.multihead_attn.in_proj_weight
 cross_attention_bio.multihead_attn.in_proj_bias
 cross_attention_bio.multihead_attn.out_proj.weight

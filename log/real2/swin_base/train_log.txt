@@ -1,6 +1,6 @@
-2024-11-30 16:02:11 transreid INFO: Saving model in the path :./log/real2/swin_base
-2024-11-30 16:02:11 transreid INFO: Loaded configuration file configs/real2/swin_base.yml
-2024-11-30 16:02:11 transreid INFO: Running with config:
+2024-11-30 22:01:31 transreid INFO: Saving model in the path :./log/real2/swin_base
+2024-11-30 22:01:31 transreid INFO: Loaded configuration file configs/real2/swin_base.yml
+2024-11-30 22:01:31 transreid INFO: Running with config:
 DATALOADER:
   NUM_INSTANCE: 4
   NUM_WORKERS: 8
@@ -71,7 +71,7 @@ SOLVER:
   CHECKPOINT_PERIOD: 120
   COSINE_MARGIN: 0.5
   COSINE_SCALE: 30
-  EVAL_PERIOD: 10
+  EVAL_PERIOD: 1
   GAMMA: 0.1
   IMS_PER_BATCH: 32
   LARGE_FC_LR: False
@@ -96,15 +96,34 @@ TEST:
   NECK_FEAT: before
   RE_RANKING: False
   WEIGHT: 
-2024-11-30 16:02:12 transreid.check INFO: Dataset statistics:
-2024-11-30 16:02:12 transreid.check INFO:   ----------------------------------------
-2024-11-30 16:02:12 transreid.check INFO:   subset   | # ids | # images | # cameras
-2024-11-30 16:02:12 transreid.check INFO:   ----------------------------------------
-2024-11-30 16:02:12 transreid.check INFO:   train    |    96 |    13427 |         1
-2024-11-30 16:02:12 transreid.check INFO:   query    |    96 |     5545 |         1
-2024-11-30 16:02:12 transreid.check INFO:   gallery  |    96 |    13427 |         1
-2024-11-30 16:02:12 transreid.check INFO:   ----------------------------------------
-2024-11-30 16:02:49 transreid INFO: ===========using cosine learning rate=======
-2024-11-30 16:02:49 transreid.train INFO: start training
-2024-11-30 16:02:57 transreid.train INFO: Epoch[1] Iter[20/416] Loss: 24.672, Acc: 0.013, Base Lr: 1.19e-05
-2024-11-30 16:03:04 transreid.train INFO: Epoch[1] Iter[40/416] Loss: 22.110, Acc: 0.012, Base Lr: 1.19e-05
+2024-11-30 22:01:31 transreid.check INFO: Dataset statistics:
+2024-11-30 22:01:31 transreid.check INFO:   ----------------------------------------
+2024-11-30 22:01:31 transreid.check INFO:   subset   | # ids | # images | # cameras
+2024-11-30 22:01:31 transreid.check INFO:   ----------------------------------------
+2024-11-30 22:01:31 transreid.check INFO:   train    |    96 |    13427 |         1
+2024-11-30 22:01:31 transreid.check INFO:   query    |    96 |     5545 |         1
+2024-11-30 22:01:31 transreid.check INFO:   gallery  |    96 |    13427 |         1
+2024-11-30 22:01:31 transreid.check INFO:   ----------------------------------------
+2024-11-30 22:02:10 transreid INFO: ===========using cosine learning rate=======
+2024-11-30 22:02:10 transreid.train INFO: start training
+2024-11-30 22:02:22 transreid.train INFO: Epoch[1] Iter[20/416] Loss: 25.281, Acc: 0.006, Base Lr: 1.19e-05
+2024-11-30 22:02:34 transreid.train INFO: Epoch[1] Iter[40/416] Loss: 22.054, Acc: 0.007, Base Lr: 1.19e-05
+2024-11-30 22:02:46 transreid.train INFO: Epoch[1] Iter[60/416] Loss: 20.589, Acc: 0.009, Base Lr: 1.19e-05
+2024-11-30 22:02:58 transreid.train INFO: Epoch[1] Iter[80/416] Loss: 19.442, Acc: 0.011, Base Lr: 1.19e-05
+2024-11-30 22:03:10 transreid.train INFO: Epoch[1] Iter[100/416] Loss: 18.554, Acc: 0.011, Base Lr: 1.19e-05
+2024-11-30 22:03:21 transreid.train INFO: Epoch[1] Iter[120/416] Loss: 18.255, Acc: 0.011, Base Lr: 1.19e-05
+2024-11-30 22:03:34 transreid.train INFO: Epoch[1] Iter[140/416] Loss: 18.053, Acc: 0.010, Base Lr: 1.19e-05
+2024-11-30 22:03:45 transreid.train INFO: Epoch[1] Iter[160/416] Loss: 18.156, Acc: 0.010, Base Lr: 1.19e-05
+2024-11-30 22:03:56 transreid.train INFO: Epoch[1] Iter[180/416] Loss: 17.908, Acc: 0.010, Base Lr: 1.19e-05
+2024-11-30 22:04:06 transreid.train INFO: Epoch[1] Iter[200/416] Loss: 17.609, Acc: 0.010, Base Lr: 1.19e-05
+2024-11-30 22:04:17 transreid.train INFO: Epoch[1] Iter[220/416] Loss: 17.304, Acc: 0.010, Base Lr: 1.19e-05
+2024-11-30 22:04:26 transreid.train INFO: Epoch[1] Iter[240/416] Loss: 17.011, Acc: 0.010, Base Lr: 1.19e-05
+2024-11-30 22:04:38 transreid.train INFO: Epoch[1] Iter[260/416] Loss: 16.721, Acc: 0.011, Base Lr: 1.19e-05
+2024-11-30 22:04:49 transreid.train INFO: Epoch[1] Iter[280/416] Loss: 16.441, Acc: 0.011, Base Lr: 1.19e-05
+2024-11-30 22:05:01 transreid.train INFO: Epoch[1] Iter[300/416] Loss: 16.190, Acc: 0.011, Base Lr: 1.19e-05
+2024-11-30 22:05:11 transreid.train INFO: Epoch[1] Iter[320/416] Loss: 15.985, Acc: 0.011, Base Lr: 1.19e-05
+2024-11-30 22:05:21 transreid.train INFO: Epoch[1] Iter[340/416] Loss: 15.743, Acc: 0.012, Base Lr: 1.19e-05
+2024-11-30 22:05:30 transreid.train INFO: Epoch[1] Iter[360/416] Loss: 15.523, Acc: 0.012, Base Lr: 1.19e-05
+2024-11-30 22:05:42 transreid.train INFO: Epoch[1] Iter[380/416] Loss: 15.360, Acc: 0.012, Base Lr: 1.19e-05
+2024-11-30 22:05:54 transreid.train INFO: Epoch[1] Iter[400/416] Loss: 15.127, Acc: 0.012, Base Lr: 1.19e-05
+2024-11-30 22:06:00 transreid.train INFO: Epoch 1 done. Time per epoch: 229.991[s] Speed: 57.3[samples/s]

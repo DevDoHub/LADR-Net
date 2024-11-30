@@ -10,6 +10,8 @@ from utils.metrics import R1_mAP_eval
 from torch.cuda import amp
 import torch.distributed as dist
 
+from utils.visualize import visualize_attention
+
 def do_train(cfg,
              model,
              center_criterion,
@@ -66,8 +68,8 @@ def do_train(cfg,
                 # batch = img.size(0)
                 # instruction = ('do_not_change_clothes',) * batch
                 # score, feat, _ = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
-                feat, bio_f, clot_f, score, f_logits, c_logits, _, text_embeds_s = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
-                loss = loss_fn(score, f_logits, c_logits, feat, bio_f, clot_f, target, text_embeds_s, target_cam)
+                feat, bio_f, clot_f, score, f_logits, c_logits, _, text_embeds_s, attn_weights = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
+                loss = loss_fn(score, f_logits, c_logits, feat, bio_f, clot_f, target, text_embeds_s, target_cam, attn_weights)
 
             scaler.scale(loss).backward()
 
@@ -145,12 +147,33 @@ def do_train(cfg,
                         img = img.to(device)
                         camids = camids.to(device)
                         target_view = target_view.to(device)
-                        #batch = img.size(0)
-                        #instruction = ('do_not_change_clothes',) * batch
-                        # feat, _ = model(img, cam_label=camids, view_label=target_view)
-                        feat, bio_f, clot_f, f_logits, c_logits, _, text_embeds_s = model(img, instruction, cam_label=camids, view_label=target_view )
+                        
+                        # 前向传播并获取注意力权重
+                        feat, bio_f, clot_f, f_logits, c_logits, _, text_embeds_s, attn_weights = model(img, instruction, cam_label=camids, view_label=target_view)
+                        
+                        # 将生物特征和衣物特征拼接
                         bio_clot_feat = torch.cat([bio_f, clot_f], dim=1)
+                        
+                        # 更新评估器
                         evaluator.update((feat, vid, camid))
+
+                        # # 在评估时可视化第一个样本的注意力
+                        # if n_iter == 0:  # 只在第一次迭代时进行可视化（或每个批次）
+                        #     # 假设 img[0] 和 attn_weights[0] 是你想要可视化的样本
+                        #     image = img[0].cpu().numpy().transpose(1, 2, 0)  # 转换为 [H, W, C] 格式
+                        #     instruction_text = instruction[0]  # 获取对应的文本描述
+                        #     visualize_attention(image, attn_weights[0], instruction_text)
+
+                        # 在每个批次中展示多个样本的注意力
+                        batch_size = img.size(0)  # 获取当前批次的样本数
+                        for i in range(batch_size):  # 遍历每个样本
+                            image = img[i].cpu().numpy().transpose(1, 2, 0)  # 获取第 i 个样本，并转换为 [H, W, C]
+                            instruction_text = instruction[i]  # 获取对应的文本描述
+                            # 可视化并保存该样本的注意力
+                            visualize_attention(image, attn_weights[i], instruction_text, save_dir="attention_maps")    
+
+
+                # 计算评估指标
                 cmc, mAP, _, _, _, _, _ = evaluator.compute()
                 logger.info("Validation Results - Epoch: {}".format(epoch))
                 logger.info("mAP: {:.1%}".format(mAP))
