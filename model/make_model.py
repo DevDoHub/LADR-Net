@@ -37,6 +37,7 @@ class SemanticAttention(nn.Module):
         super(SemanticAttention, self).__init__()
         self.text_proj = nn.Linear(dim_model, dim_model)  # 保持与 image_feats 一致
         self.softmax = nn.Softmax(dim=-1)
+        self.self_attention = nn.MultiheadAttention(dim_model, num_heads=8)  # 引入自注意力机制
 
     def forward(self, image_feats, text_feats):
         device = next(self.text_proj.parameters()).device
@@ -52,13 +53,17 @@ class SemanticAttention(nn.Module):
         attn_scores = torch.bmm(image_feats, text_feats_proj.permute(0, 2, 1))  # (batch, img_len, text_len)
 
         # 对相似性得分进行归一化处理（softmax）
-        attn_weights = self.softmax(attn_scores)  # (batch, img_len, text_len)
+        attn_weights = self.softmax(attn_scores)
 
-        # 计算加权后的图像特征
-        image_feats_attended = torch.bmm(attn_weights, text_feats_proj)  # (batch, img_len, dim_model)
+        # 使用自注意力机制对图像特征进行加权
+        image_feats_self_attn, _ = self.self_attention(image_feats, image_feats, image_feats)
 
-        # 返回加权后的图像特征和注意力权重
-        return image_feats_attended, attn_weights
+        # 加权后的图像特征
+        image_feats_attended = torch.bmm(attn_weights, text_feats_proj)
+
+        # 返回自注意力加权后的图像特征、文本特征和注意力权重
+        return image_feats_attended + image_feats_self_attn, attn_weights
+
 
 
 def shuffle_unit(features, shift, group, begin=1):
@@ -366,26 +371,28 @@ class build_transformer(nn.Module):
         batch = featmaps[-1].size(0)
         local_feat_all = featmaps[-1].view(batch, 1024, 12 * 4).permute(0, 2, 1)  # (batch, img_len, dim_model)
 
-        # 3. 语义引导的注意力模块：根据文本嵌入调整图像特征
+        # 3. 语义引导的注意力模块 (SemanticAttention)
         semantic_attention = SemanticAttention(dim_model=1024)  # 假设图像特征的维度是1024
-        attended_feats, attn_weights = semantic_attention(local_feat_all, text_feat.unsqueeze(1))
-
+        image_feats_attended, attn_weights = semantic_attention(local_feat_all, text_feat.unsqueeze(1))
+        
+        
         # 获取模型的设备
         device = global_feat.device
 
         # 确保所有张量在同一设备上
         global_feat = global_feat.to(device)
-        attended_feats = attended_feats.to(device)
+        image_feats_attended = image_feats_attended.to(device)
 
         # 4. 融合图像与文本特征
-        image_embeds = torch.cat((global_feat.unsqueeze(1), attended_feats), dim=1)  # 图像特征拼接
+        image_embeds = torch.cat((global_feat.unsqueeze(1), image_feats_attended), dim=1)  # 将全局图像特征与注意力后的特征拼接
 
-        bio_fusion, clot_fusion = self.dual_attn(image_embeds, text_embeds)
+        # 5. 使用交叉注意力进行生物和衣物特征融合 (CrossAttention)
+        bio_fusion, clot_fusion = self.dual_attn(image_embeds, text_embeds)  # 通过CrossAttention融合
 
-        # 5. 特征处理
+        # 7. 特征处理
         feat = self.feat_bn(global_feat)
-        bio_f = self.fusion_feat_bn(bio_fusion[:, 0])  # 生物特征
-        clot_f = self.fusion_feat_bn(clot_fusion[:, 0])  # 衣物特征
+        bio_f = self.fusion_feat_bn(bio_fusion[:, 0])  # 处理后的生物特征
+        clot_f = self.fusion_feat_bn(clot_fusion[:, 0])  # 处理后的衣物特征
 
         if self.reduce_feat_dim:
             logits = self.fcneck(global_feat)

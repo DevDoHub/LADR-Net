@@ -164,17 +164,21 @@ def do_train(cfg,
                             image = img[0].cpu().numpy().transpose(1, 2, 0)  # 转换为 [H, W, C] 格式
                             instruction_text = instruction[0]  # 获取对应的文本描述
 
-                            data_to_save = {
-                                'image': image,
-                                'attn_weights': attn_weights[0],
-                                'instruction_text': instruction_text
-                            }
+                            try:
+                                data_to_save = {
+                                    'image': image,
+                                    'attn_weights': attn_weights[epoch/10],
+                                    'instruction_text': instruction_text
+                                }
 
-                            with open(f'saved_data{epoch}.pkl', 'wb') as f:
-                                pickle.dump(data_to_save, f)
+                                with open(f'saved_data{epoch}.pkl', 'wb') as f:
+                                    pickle.dump(data_to_save, f)
 
-                            # 假设 img[0] 和 attn_weights[0] 是你想要可视化的样本
-                            visualize_attention(image, attn_weights[0], instruction_text)
+                                # 假设 img[0] 和 attn_weights[0] 是你想要可视化的样本
+                                visualize_attention(image, attn_weights[epoch/10], instruction_text)
+                            except:
+                                print('error')
+                                pass
 
                         # 在每个批次中展示多个样本的注意力
                         # batch_size = img.size(0)  # 获取当前批次的样本数

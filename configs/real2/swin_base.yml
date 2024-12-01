@@ -8,7 +8,7 @@ MODEL:
   DEVICE_ID: ('0')
   TRANSFORMER_TYPE: 'swin_base_patch4_window7_224'
   STRIDE_SIZE: [16, 16]
-  FUSION_BRANCH: ''
+  FUSION_BRANCH: 'bio+clot'
 
 INPUT:
   SIZE_TRAIN: [384, 128]
