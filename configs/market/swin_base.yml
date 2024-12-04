@@ -52,3 +52,4 @@ TEST:
   FEAT_NORM: 'yes'
 
 OUTPUT_DIR: './log/market1501/swin_base'
+JSON_DIR: './data/market1501/market1501_gpt_v1.json'

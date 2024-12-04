@@ -65,8 +65,8 @@ def make_dataloader(cfg):
         train_set = ImageDataset(dataset.train, train_transforms, json_list=cfg.JSON_DIR, is_train=True)
         train_set_normal = ImageDataset(dataset.train, val_transforms, json_list=cfg.JSON_DIR, is_train=True)
     else:
-        train_set = ImageDataset(dataset.train, train_transforms)
-        train_set_normal = ImageDataset(dataset.train, val_transforms)
+        train_set = ImageDataset(dataset.train, train_transforms, is_train=True)
+        train_set_normal = ImageDataset(dataset.train, val_transforms, is_train=True)
 
     num_classes = dataset.num_train_pids
     cam_num = dataset.num_train_cams
@@ -108,7 +108,9 @@ def make_dataloader(cfg):
     else:
         print('unsupported sampler! expected softmax or triplet but got {}'.format(cfg.SAMPLER))
     
-    val_set = ImageDataset(dataset.query + dataset.gallery, val_transforms, json_list=cfg.JSON_DIR, is_train=False)
+    # val_set = ImageDataset(dataset.query + dataset.gallery, val_transforms, json_list=cfg.JSON_DIR, is_train=False)
+    val_set = ImageDataset(dataset.query + dataset.gallery, val_transforms, is_train=False)
+
 
     val_loader = DataLoader(
         val_set, batch_size=cfg.TEST.IMS_PER_BATCH, shuffle=False, num_workers=num_workers,

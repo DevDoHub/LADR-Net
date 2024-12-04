@@ -51,7 +51,7 @@ class BaseDataset(object):
             num_views = len(tracks)
             return num_pids, num_imgs, num_cams, num_views
         else:
-            for _, pid, camid, trackid in data:
+            for _, _,pid, camid, trackid in data:
                 pids += [pid]
                 cams += [camid]
                 tracks += [trackid]
@@ -88,12 +88,13 @@ class BaseImageDataset(BaseDataset):
         logger.info("  ----------------------------------------")
 
 class ImageDataset(Dataset):
-    def __init__(self, dataset, transform=None, json_list=None, is_train = False):
+    # def __init__(self, dataset, transform=None, json_list=None, is_train = False):
+    def __init__(self, dataset, transform=None, is_train=True):
         self.dataset = dataset
         self.transform = transform
         
-        attr_file =  open(json_list, 'r', encoding='utf-8')
-        self.attr_dict = json.load(attr_file)
+        # attr_file =  open(json_list, 'r', encoding='utf-8')
+        # self.attr_dict = json.load(attr_file)
 
     def __len__(self):
         return len(self.dataset)
@@ -107,8 +108,8 @@ class ImageDataset(Dataset):
 
         # TODO 例子"images/2/3/track_26_n_1056_t_164240.jpg_533060.jpg"
         # img_path需要实际转换
-        attr_item = self.attr_dict[instruct]
-        attribute = pre_caption(attr_item, 50)
+        # attr_item = self.attr_dict[instruct]
+        attribute = pre_caption(instruct, 50)
 
         return img, attribute, pid, camid, trackid, img_path
         #  return img, pid, camid, trackid,img_path.split('/')[-1]

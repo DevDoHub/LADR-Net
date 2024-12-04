@@ -134,23 +134,48 @@
 # torch.save(existing_checkpoint, new_checkpoint_path)
 
 # print(f"新参数已添加，检查点保存到 {new_checkpoint_path}")
-import torch
+# import torch
 
-# 加载 checkpoint_tea.pth 文件
-checkpoint_path = 'checkpoint_tea.pth'
-try:
-    checkpoint = torch.load(checkpoint_path)
-    checkpoint = dict(checkpoint)
-    # 打印所有参数的名称
-    print("Checkpoint parameters:")
-    for param_name in checkpoint.keys():
-        # for i in param_name.keys():
-        print(param_name)
+# # 加载 checkpoint_tea.pth 文件
+# checkpoint_path = 'checkpoint_tea.pth'
+# try:
+#     checkpoint = torch.load(checkpoint_path)
+#     checkpoint = dict(checkpoint)
+#     # 打印所有参数的名称
+#     print("Checkpoint parameters:")
+#     for param_name in checkpoint.keys():
+#         # for i in param_name.keys():
+#         print(param_name)
 
-except FileNotFoundError:
-    print(f"文件 {checkpoint_path} 不存在。")
-except Exception as e:
-    print(f"加载文件时出现错误：{e}")
+# except FileNotFoundError:
+#     print(f"文件 {checkpoint_path} 不存在。")
+# except Exception as e:
+#     print(f"加载文件时出现错误：{e}")  
+
+
+import json
+import re
+
+# 读取 JSON 文件
+with open('./data/market1501/market1501_gpt_v1.json', 'r') as file:
+    data = json.load(file)
+
+# 去掉文件名中的特定后缀
+def remove_suffix(filename):
+    return re.sub(r'_c\d+s\d+_\d+_\d+\.jpg$', '', filename)
+data = dict(data)
+# 假设 JSON 文件是一个列表
+# data = {remove_suffix(item).replace(' ', ''):v for item,v in data.items()}
+for i in range(0, 1501):
+    i_str = f'{i:04d}'  # 使用 f-string 格式化，填充为4位数字
+    if i_str in data and data[i_str] is False:
+        print(i_str)
+
+# 将修改后的数据写回 JSON 文件
+# with open('./data/market1501/market1501_gpt_v1_modified.json', 'w') as file:
+#     json.dump(data, file, indent=4)
+
+# print("文件名后缀已去掉并保存到 market1501_gpt_v1_modified.json")
 # import torch
 
 # # 第一步：加载完整的模型权重文件 (pass_vit_base_full.pth)
