@@ -85,7 +85,11 @@ class Market1501(BaseImageDataset):
             camid -= 1  # index starts from 0
             if relabel: pid = pid2label[pid]
             # pattern = re.compile(r'([\d]+)_c.*.jpg')
-            pattern = re.compile(r'([-\d]+)_c([\d])')
-            match = pattern.search(img_path)
-            dataset.append((img_path, market1501_gpt_v1[match.group(1)] ,self.pid_begin + pid, camid, 1))
+            # pattern = re.compile(r'([-\d]+)_c([\d])')
+            # match = pattern.search(img_path)
+            if pid in [-1, 0]:
+                des = 'Noisy point'
+            else:
+                des = market1501_gpt_v1[img_path]
+            dataset.append((img_path,  des,self.pid_begin + pid, camid, 1))
         return dataset
