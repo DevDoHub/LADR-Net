@@ -1,6 +1,6 @@
-2024-10-23 20:28:38 transreid INFO: Saving model in the path :./log/market/swin_base
-2024-10-23 20:28:38 transreid INFO: Loaded configuration file configs/market/swin_base.yml
-2024-10-23 20:28:38 transreid INFO: Running with config:
+2025-02-14 18:39:00 transreid INFO: Saving model in the path :./log/market/swin_base
+2025-02-14 18:39:00 transreid INFO: Loaded configuration file configs/market/swin_base.yml
+2025-02-14 18:39:00 transreid INFO: Running with config:
 DATALOADER:
   NUM_INSTANCE: 4
   NUM_WORKERS: 0
@@ -95,11 +95,14 @@ TEST:
   NECK_FEAT: before
   RE_RANKING: False
   WEIGHT: 
-2024-10-23 20:28:39 transreid.check INFO: Dataset statistics:
-2024-10-23 20:28:39 transreid.check INFO:   ----------------------------------------
-2024-10-23 20:28:39 transreid.check INFO:   subset   | # ids | # images | # cameras
-2024-10-23 20:28:39 transreid.check INFO:   ----------------------------------------
-2024-10-23 20:28:39 transreid.check INFO:   train    |     3 |       57 |         5
-2024-10-23 20:28:39 transreid.check INFO:   query    |   750 |     3368 |         6
-2024-10-23 20:28:39 transreid.check INFO:   gallery  |   751 |    15913 |         6
-2024-10-23 20:28:39 transreid.check INFO:   ----------------------------------------
+2025-02-14 18:39:00 transreid.check INFO: Dataset statistics:
+2025-02-14 18:39:00 transreid.check INFO:   ----------------------------------------
+2025-02-14 18:39:00 transreid.check INFO:   subset   | # ids | # images | # cameras
+2025-02-14 18:39:00 transreid.check INFO:   ----------------------------------------
+2025-02-14 18:39:00 transreid.check INFO:   train    |     3 |       57 |         5
+2025-02-14 18:39:00 transreid.check INFO:   query    |   750 |     3368 |         6
+2025-02-14 18:39:00 transreid.check INFO:   gallery  |   751 |    15913 |         6
+2025-02-14 18:39:00 transreid.check INFO:   ----------------------------------------
+2025-02-14 18:39:10 transreid INFO: ===========using cosine learning rate=======
+2025-02-14 18:39:10 transreid.train INFO: start training
+2025-02-14 18:39:11 transreid.train INFO: Epoch 1 done. Time per epoch: 0.668[s] Speed: 35.9[samples/s]

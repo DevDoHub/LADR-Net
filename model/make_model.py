@@ -201,9 +201,9 @@ class build_transformer(nn.Module):
         self.conv_layer = nn.Conv1d(in_channels=768, out_channels=1024, kernel_size=1)
 
         self.TransReid = nn.Sequential(
-            Block(dim=1024, num_heads=16, qkv_bias=True),
-            Block(dim=1024, num_heads=16, qkv_bias=True),
-            Block(dim=1024, num_heads=16, qkv_bias=True)
+            Block(dim=1024, num_heads=16, qkv_bias=True, noise_std=0.1),
+            Block(dim=1024, num_heads=16, qkv_bias=True, noise_std=0.1),
+            Block(dim=1024, num_heads=16, qkv_bias=True, noise_std=0.1)
         )
 
         self.base = factory[cfg.MODEL.TRANSFORMER_TYPE](img_size=cfg.INPUT.SIZE_TRAIN, drop_path_rate=cfg.MODEL.DROP_PATH, drop_rate= cfg.MODEL.DROP_OUT,attn_drop_rate=cfg.MODEL.ATT_DROP_RATE, pretrained=model_path, convert_weights=convert_weights, semantic_weight=semantic_weight)
