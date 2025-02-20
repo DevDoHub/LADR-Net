@@ -62,7 +62,7 @@ def make_loss(cfg, num_classes):    # modified by gu
                         ID_LOSS = sum(ID_LOSS) / len(ID_LOSS)
                         ID_LOSS = 0.5 * ID_LOSS + 0.5 * F.cross_entropy(score[0], target)
                     else:
-                        ID_LOSS = F.cross_entropy(score, target)
+                        ID_LOSS = F.cross_entropy(score, target.long(), reduction='none')
                         LOSS += cfg.MODEL.ID_LOSS_WEIGHT * ID_LOSS
 
                     if isinstance(feat, list):
@@ -79,7 +79,7 @@ def make_loss(cfg, num_classes):    # modified by gu
                         BIO_ID_LOSS = sum(ID_LOSS) / len(ID_LOSS)
                         BIO_ID_LOSS = 0.5 * ID_LOSS + 0.5 * F.cross_entropy(score[0], target)
                     else:
-                        BIO_ID_LOSS = F.cross_entropy(f_logits, target)
+                        BIO_ID_LOSS = F.cross_entropy(f_logits, target.long(), reduction='none')
                         LOSS += cfg.MODEL.BIO_ID_LOSS_WEIGHT * BIO_ID_LOSS
 
 
@@ -97,7 +97,7 @@ def make_loss(cfg, num_classes):    # modified by gu
                         CLOT_ID_LOSS = sum(ID_LOSS) / len(ID_LOSS)
                         CLOT_ID_LOSS = 0.5 * ID_LOSS + 0.5 * F.cross_entropy(score[0], target)
                     else:
-                        CLOT_ID_LOSS = F.cross_entropy(c_logits, target)
+                        CLOT_ID_LOSS = F.cross_entropy(c_logits, target.long(), reduction='none')
                         LOSS += cfg.MODEL.CLOT_ID_LOSS_WEIGHT * CLOT_ID_LOSS
 
                     if isinstance(clot_f, list):

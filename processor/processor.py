@@ -9,6 +9,7 @@ from utils.meter import AverageMeter
 from utils.metrics import R1_mAP_eval
 from torch.cuda import amp
 import torch.distributed as dist
+from loss.Mentor import MentorNet, mixup_data
 
 def do_train(cfg,
              model,
@@ -24,7 +25,7 @@ def do_train(cfg,
     checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
     # eval_period = cfg.SOLVER.EVAL_PERIOD
     eval_period = 1#TODO
-
+    loss_moving_avg = 0.0  # 在循环开始之前初始化滑动平均损失
     device = "cuda"
     epochs = cfg.SOLVER.MAX_EPOCHS
 
@@ -39,7 +40,7 @@ def do_train(cfg,
     model.to(local_rank)
     loss_meter = AverageMeter()
     acc_meter = AverageMeter()
-
+    mentornet = MentorNet().to('cuda')
     evaluator = R1_mAP_eval(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM)
     scaler = amp.GradScaler()
     # train
@@ -54,6 +55,7 @@ def do_train(cfg,
         evaluator.reset()
         model.train()
         n_iter_overall = 0
+
         for n_iter, (img, vid, target_cam, target_view) in enumerate(train_loader):
             n_iter_overall += 1
             optimizer.zero_grad()
@@ -62,17 +64,44 @@ def do_train(cfg,
             target = vid.to(device)
             target_cam = target_cam.to(device)
             target_view = target_view.to(device)
+
             with amp.autocast(enabled=True):
                 batch = img.size(0)
                 instruction = ('do_not_change_clothes',) * batch
-                # score, feat, _ = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
-                feat, bio_f, clot_f, score, f_logits, c_logits, _, text_embeds_s = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
+
+                # --------- 计算原始 loss -------------
+                feat, bio_f, clot_f, score, f_logits, c_logits, _, text_embeds_s = model(
+                    img, instruction, label=target, cam_label=target_cam, view_label=target_view
+                )
                 loss = loss_fn(score, f_logits, c_logits, feat, bio_f, clot_f, target, text_embeds_s, target_cam)
 
-            scaler.scale(loss).backward()
+                # --------- MentorNet 计算权重 v -------------
+                loss_reshaped = loss.view(-1, 1)  # (batch, 1)
+                epoch_tensor = torch.full((batch, 1), fill_value=epoch, dtype=torch.float32).to(device)  # (batch, 1)
 
+                # 计算 loss 分位数（percentile_loss）
+                percentile_loss = torch.quantile(loss.detach(), q=0.2)  # 取 20% 分位损失
+                loss_moving_avg = 0.5 * loss_moving_avg + 0.5 * percentile_loss  # 更新滑动平均损失
+                lossdiff = loss - loss_moving_avg  # 计算损失与滑动均值的差异
+
+                # MentorNet 计算 v
+                input_data = torch.cat([loss_reshaped, lossdiff.unsqueeze(1), epoch_tensor], dim=1).to('cuda')  # 拼接输入
+                v = mentornet(input_data).detach()  # MentorNet 计算权重 (batch, 1)
+
+                # --------- Mixup 数据增强 -------------
+                mixed_img, mixed_target = mixup_data(img, target, v)  # 使用 MentorNet 权重做 Mixup
+                feat_mix, bio_f_mix, clot_f_mix, score_mix, f_logits_mix, c_logits_mix, _, text_embeds_s_mix = model(
+                    mixed_img, instruction, label=mixed_target, cam_label=target_cam, view_label=target_view
+                )
+
+                loss_mixup = loss_fn(score_mix, f_logits_mix, c_logits_mix, feat_mix, bio_f_mix, clot_f_mix, mixed_target, text_embeds_s_mix, target_cam)
+
+            # --------- 计算总损失并反向传播 -------------
+            loss_final = loss + loss_mixup
+            scaler.scale(loss_final.sum()).backward()
             scaler.step(optimizer)
             scaler.update()
+
 
             if 'center' in cfg.MODEL.METRIC_LOSS_TYPE:
                 for param in center_criterion.parameters():
@@ -84,7 +113,7 @@ def do_train(cfg,
             else:
                 acc = (score.max(1)[1] == target).float().mean()
 
-            loss_meter.update(loss.item(), img.shape[0])
+            loss_meter.update(loss.sum().item(), img.shape[0])
             acc_meter.update(acc, 1)
 
             torch.cuda.synchronize()
