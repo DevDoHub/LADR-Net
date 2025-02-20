@@ -161,7 +161,7 @@ class TripletLoss(nn.Module):
         super(TripletLoss, self).__init__()
         self.margin = margin
         self.normalize_feature = normalize_feature
-        self.margin_loss = nn.MarginRankingLoss(margin=margin).cuda()
+        self.margin_loss = nn.MarginRankingLoss(margin=margin, reduction='none').cuda()
 
     def forward(self, emb, label, clot_feats_s):
         if self.normalize_feature:
@@ -194,8 +194,9 @@ class TripletLoss(nn.Module):
         y11[alpha1 < alpha2] = -1
         y11_m[alpha1 == alpha2] = 0
         
-        loss11 = self.margin_loss(dist_ap2*y11_m, dist_ap1*y11_m + self.margin*(alpha1 - alpha2 - y11), y11)
-        
+        loss11 = self.margin_loss(dist_ap2*y11_m, dist_ap1*y11_m + self.margin*(alpha1 - alpha2 - y11), y11)#TODO
+        # loss11 = torch.clamp(-y13 * (dist_ap1 - dist_an) + self.margin, min=0)
+
         y13 = torch.ones_like(dist_ap1)
         
         dist_ap1 =  dist_ap1 + self.margin*(alpha1 - 1)

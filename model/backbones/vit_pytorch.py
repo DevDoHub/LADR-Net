@@ -144,7 +144,7 @@ class Attention(nn.Module):
         return x
 
 
-class Block(nn.Module):
+class Block(nn.Module):#TODO:原版未加入噪声
 
     def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.,
                  drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm):
@@ -162,6 +162,33 @@ class Block(nn.Module):
         x = x + self.drop_path(self.attn(self.norm1(x)))
         x = x + self.drop_path(self.mlp(self.norm2(x)))
         return x
+    
+# class Block(nn.Module):#TODO:加入噪声  这个是可以在 Block 的输入数据（x）进入 attn 模块和 mlp 模块之前添加噪声。你可以通过修改 forward 方法来实现：
+#     def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.,
+#                  drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm, noise_std=0.1):
+#         super().__init__()
+#         self.norm1 = norm_layer(dim)
+#         self.attn = Attention(
+#             dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
+#         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+#         self.norm2 = norm_layer(dim)
+#         mlp_hidden_dim = int(dim * mlp_ratio)
+#         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
+#         self.noise_std = noise_std  # 控制噪声标准差
+
+#     def add_noise(self, x):
+#         """ 在输入数据中添加噪声 """
+#         noise = torch.randn_like(x) * self.noise_std
+#         return x + noise
+
+#     def forward(self, x):
+#         # 在进入 attention 层之前添加噪声
+#         x = self.add_noise(x)
+#         x = x + self.drop_path(self.attn(self.norm1(x)))
+#         # 在进入 mlp 层之前添加噪声
+#         x = self.add_noise(x)
+#         x = x + self.drop_path(self.mlp(self.norm2(x)))
+#         return x
 
 class IBN(nn.Module):
     def __init__(self, planes):
