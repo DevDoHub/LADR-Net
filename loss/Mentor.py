@@ -38,7 +38,7 @@ class MentorNet(nn.Module):
         _, (hidden_fw, hidden_bw) = self.lstm(lstm_inputs)  # 双向 LSTM 输出
 
         # 拼接隐藏状态
-        h = torch.cat([hidden_fw.permute(1, 0, 2).view(8, -1), hidden_bw.permute(1, 0, 2).view(8, -1)], dim=-1)  # [batch_size, 2]
+        h = torch.cat([hidden_fw.permute(1, 0, 2).view(32, -1), hidden_bw.permute(1, 0, 2).view(32, -1)], dim=-1)  # [batch_size, 2]
 
         # 拼接特征
         feat = torch.cat([label_inputs, epoch_inputs, h], dim=-1)  # [batch_size, label_size + epoch_size + 2]
