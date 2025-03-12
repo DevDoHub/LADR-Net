@@ -50,6 +50,10 @@ class MentorNet(nn.Module):
         return v
     
 def sigmoid(x):
+    # if torch.isnan(x).any() or torch.isinf(x).any():  
+    #     print("Detected NaN or Inf in x!")
+    #     print(x)
+    #     exit()
     x = x.detach().cpu().numpy()  # 先分离计算图，再移到 CPU 并转换为 numpy 数组
     return 1 / (1 + np.exp(-x)) 
 
