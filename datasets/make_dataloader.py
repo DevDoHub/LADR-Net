@@ -7,6 +7,7 @@ from timm.data.random_erasing import RandomErasing
 from .sampler import RandomIdentitySampler, RandomIdentitySampler_IdUniform
 from .market1501 import Market1501
 from .msmt17 import MSMT17
+from .cuhk03 import Cuhk03
 from .sampler_ddp import RandomIdentitySampler_DDP
 import torch.distributed as dist
 from .mm import MM
@@ -14,6 +15,7 @@ __factory = {
     'market1501': Market1501,
     'msmt17': MSMT17,
     'mm': MM,
+    'cuhk03': Cuhk03,
 }
 
 def train_collate_fn(batch):
