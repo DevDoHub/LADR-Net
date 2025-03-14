@@ -27,6 +27,7 @@ class MentorNet(nn.Module):
         losses = input_features[:, 0].unsqueeze(-1)  # [batch_size, 1]
         loss_diffs = input_features[:, 1].unsqueeze(-1)  # [batch_size, 1]
         labels = input_features[:, 2].long()  # 转换为整数索引
+        # labels = input_features[:, 2].long().clamp(max=self.label_embedding.num_embeddings-1)  # 确保标签不超过嵌入层容量
         epochs = input_features[:, 3].long().clamp(max=99)  # 限制最大值 99
 
         # 标签和 epoch 的 embedding
@@ -48,14 +49,20 @@ class MentorNet(nn.Module):
         v = self.fc2(fc1_out)  # [batch_size, 1]
         
         return v
-    
+
 def sigmoid(x):
-    # if torch.isnan(x).any() or torch.isinf(x).any():  
-    #     print("Detected NaN or Inf in x!")
-    #     print(x)
-    #     exit()
-    x = x.detach().cpu().numpy()  # 先分离计算图，再移到 CPU 并转换为 numpy 数组
-    return 1 / (1 + np.exp(-x)) 
+    # 确保输入是 PyTorch 张量并在 CPU 上
+    x = x.detach().cpu()
+    
+    # 将 Half 类型张量转换为 float32
+    if x.dtype == torch.float16:
+        x = x.to(torch.float32)
+    
+    if torch.isnan(x).any() or torch.isinf(x).any():
+        print("Warning: Tensor contains NaN or Inf values.")
+    
+    return torch.sigmoid(x)
+
 
 # class MentorNet(nn.Module):
 #     def __init__(self, input_dim=3, hidden_dim=32):

@@ -23,10 +23,10 @@ def do_train(cfg,
              num_query, local_rank):
     log_period = cfg.SOLVER.LOG_PERIOD
     checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
-    # eval_period = cfg.SOLVER.EVAL_PERIOD
-    eval_period = 1#TODO
+    eval_period = cfg.SOLVER.EVAL_PERIOD
+    # eval_period = 1#TODO
     loss_moving_avg = 0.0  # 在循环开始之前初始化滑动平均损失
-    loss_moving_average_decay = 0.5  # 滑动平均损失的衰减率
+    loss_moving_average_decay = 0.3  # 滑动平均损失的衰减率
     device = "cuda"
     epochs = cfg.SOLVER.MAX_EPOCHS
 
@@ -43,9 +43,9 @@ def do_train(cfg,
     acc_meter = AverageMeter()
     mentornet = MentorNet(label_embedding_size=8,
                         epoch_embedding_size=6, 
-                        num_label_embedding=751,
+                        num_label_embedding=767,
                         num_fc_nodes=100).to('cuda')
-    evaluator = R1_mAP_eval(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM)
+    evaluator = R1_mAP_eval(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM, reranking=cfg.TEST.RE_RANKING)
     scaler = amp.GradScaler()
     # train
 
@@ -99,35 +99,37 @@ def do_train(cfg,
 
                 # 根据 cur_epoch 和 burn_in_epoch 来选择 v_ones 或 v_zeros
                 # if cur_epoch < (burn_in_epoch - 1):
-
+                upper_bound = v_ones
                 # else:
                 #     upper_bound = v_zeros
 
                 # MentorNet 计算 v
-                input_data = torch.cat([loss_reshaped, lossdiff.unsqueeze(1), target.unsqueeze(1), epoch_tensor], dim=1).to('cuda')  # 拼接输入 
-                output = mentornet(input_data)
-                output_tensor = torch.tensor(output)  # 将 numpy 数组转换为 PyTorch 张量
-                output_tensor = torch.clamp(output_tensor, min=-10, max=10)  # 将 v 限制在 [-10, 10] 范围内
+                input_data = torch.cat([loss_reshaped, lossdiff.unsqueeze(1), target.unsqueeze(1), epoch_tensor], dim=1).to('cuda')  # 拼接输入
+                v = sigmoid(mentornet(input_data)).detach()  # MentorNet 计算权重 (batch, 1)
 
-
-
-                v = sigmoid(output_tensor) # 然后再进行 detach()
-                v = torch.tensor(v).to('cuda')  # 将 v 转换为张量并移到 GPU
+                v = torch.maximum(v, upper_bound.to(v.device)) # 限制 v 的最大值
 
                 # 1. 阻断 v 的梯度
                 v = v.detach()  # v 的梯度被阻断，不会在反向传播中计算
 
                 # 2. 加权损失
-                weighted_loss_vector = loss * v  # 对每个样本的损失进行加权
+                weighted_loss_vector = loss * v.to(loss.device)   # 对每个样本的损失进行加权
 
                 # 3. 计算加权损失的平均值
                 loss = weighted_loss_vector.mean()  # 返回加权损失的平均值作为最终损失
 
+                # # --------- Mixup 数据增强 -------------
+                # mixed_img, mixed_target = mixup_data(img, target, v)  # 使用 MentorNet 权重做 Mixup
+                # feat_mix, bio_f_mix, clot_f_mix, score_mix, f_logits_mix, c_logits_mix, _, text_embeds_s_mix = model(
+                #     mixed_img, instruction, label=mixed_target, cam_label=target_cam, view_label=target_view
+                # )
+
+                # loss_mixup = loss_fn(score_mix, f_logits_mix, c_logits_mix, feat_mix, bio_f_mix, clot_f_mix, mixed_target, text_embeds_s_mix, target_cam)
 
             # --------- 计算总损失并反向传播 -------------
             # loss_final = loss + loss_mixup
             scaler.scale(loss.sum()).backward()
-            print('loss:', loss.sum())
+            # print('loss:', loss.sum())
             scaler.step(optimizer)
             scaler.update()
 
