@@ -1,6 +1,6 @@
-2025-02-28 01:39:40 transreid INFO: Saving model in the path :./log/market/swin_base
-2025-02-28 01:39:40 transreid INFO: Loaded configuration file configs/market/swin_base.yml
-2025-02-28 01:39:40 transreid INFO: Running with config:
+2025-04-04 01:20:48 transreid INFO: Saving model in the path :./log/market/swin_base
+2025-04-04 01:20:48 transreid INFO: Loaded configuration file configs/market/swin_base.yml
+2025-04-04 01:20:48 transreid INFO: Running with config:
 DATALOADER:
   NUM_INSTANCE: 4
   NUM_WORKERS: 0
@@ -95,14 +95,14 @@ TEST:
   NECK_FEAT: before
   RE_RANKING: False
   WEIGHT: 
-2025-02-28 01:39:40 transreid.check INFO: Dataset statistics:
-2025-02-28 01:39:40 transreid.check INFO:   ----------------------------------------
-2025-02-28 01:39:40 transreid.check INFO:   subset   | # ids | # images | # cameras
-2025-02-28 01:39:40 transreid.check INFO:   ----------------------------------------
-2025-02-28 01:39:40 transreid.check INFO:   train    |     3 |       57 |         5
-2025-02-28 01:39:40 transreid.check INFO:   query    |   750 |     3368 |         6
-2025-02-28 01:39:40 transreid.check INFO:   gallery  |   751 |    15913 |         6
-2025-02-28 01:39:40 transreid.check INFO:   ----------------------------------------
-2025-02-28 01:39:46 transreid INFO: ===========using cosine learning rate=======
-2025-02-28 01:39:46 transreid.train INFO: start training
-2025-02-28 01:39:47 transreid.train INFO: Epoch 1 done. Time per epoch: 0.621[s] Speed: 38.7[samples/s]
+2025-04-04 01:20:48 transreid.check INFO: Dataset statistics:
+2025-04-04 01:20:48 transreid.check INFO:   ----------------------------------------
+2025-04-04 01:20:48 transreid.check INFO:   subset   | # ids | # images | # cameras
+2025-04-04 01:20:48 transreid.check INFO:   ----------------------------------------
+2025-04-04 01:20:48 transreid.check INFO:   train    |     3 |       57 |         5
+2025-04-04 01:20:48 transreid.check INFO:   query    |   750 |     3368 |         6
+2025-04-04 01:20:48 transreid.check INFO:   gallery  |   751 |    15913 |         6
+2025-04-04 01:20:48 transreid.check INFO:   ----------------------------------------
+2025-04-04 01:21:55 transreid INFO: ===========using cosine learning rate=======
+2025-04-04 01:21:55 transreid.train INFO: start training
+2025-04-04 01:21:56 transreid.train INFO: Epoch 1 done. Time per epoch: 0.734[s] Speed: 32.7[samples/s]

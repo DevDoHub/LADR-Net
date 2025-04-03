@@ -303,9 +303,7 @@ class build_transformer(nn.Module):
 
         if self.reduce_feat_dim:
             logits = self.fcneck(global_feat)
-
-        bio_f = self.fusion_feat_bn(bio_fusion[:, 0])#TODO
-        clot_f = self.fusion_feat_bn(clot_fusion[:, 0])
+            
         feat = self.bottleneck(global_feat)
         feat_cls = self.dropout(feat)
         f_logits = self.classifier(bio_f)

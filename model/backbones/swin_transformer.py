@@ -1301,7 +1301,7 @@ class SwinTransformer(BaseModule):
                     constant_init(m.weight, 1.0)
         else:
             ckpt = torch.load(pretrained,map_location='cpu')
-            if 'teacher' in ckpt:
+            if '' in ckpt:
                 ckpt = ckpt['teacher']
 
             if 'state_dict' in ckpt:
