@@ -10,14 +10,14 @@ class MentorNet(nn.Module):
 
         # 标签和 Epoch Embedding 层
         self.label_embedding = nn.Embedding(num_label_embedding, label_embedding_size)
-        self.epoch_embedding = nn.Embedding(100, epoch_embedding_size)
+        self.epoch_embedding = nn.Embedding(121, epoch_embedding_size)
 
         # 双向 LSTM 层
-        self.lstm = nn.LSTM(input_size=2, hidden_size=1, 
-                            num_layers=1, batch_first=True, bidirectional=True)
+        self.lstm = nn.LSTM(input_size=2, hidden_size=6, 
+                            num_layers=2, bidirectional=True, dropout=0.1)
 
         # 全连接层
-        self.fc1 = nn.Linear(label_embedding_size + epoch_embedding_size + 4, num_fc_nodes)
+        self.fc1 = nn.Linear(label_embedding_size + epoch_embedding_size + 12, num_fc_nodes)
         self.fc2 = nn.Linear(num_fc_nodes, 1)
 
     def forward(self, input_features):
@@ -27,21 +27,22 @@ class MentorNet(nn.Module):
         losses = input_features[:, 0].unsqueeze(-1)  # [batch_size, 1]
         loss_diffs = input_features[:, 1].unsqueeze(-1)  # [batch_size, 1]
         labels = input_features[:, 2].long()  # 转换为整数索引
-        epochs = input_features[:, 3].long().clamp(max=99)  # 限制最大值 99
+        epochs = input_features[:, 3].long() # 限制最大值 99
 
         # 标签和 epoch 的 embedding
         label_inputs = self.label_embedding(labels)  # [batch_size, label_embedding_size]
         epoch_inputs = self.epoch_embedding(epochs)  # [batch_size, epoch_embedding_size]
 
         # LSTM 计算
-        lstm_inputs = torch.cat([losses, loss_diffs], dim=-1).unsqueeze(1)  # [batch_size, 1, 2]
-        _, (hidden_fw, hidden_bw) = self.lstm(lstm_inputs)  # 双向 LSTM 输出
+        # print(losses.shape, loss_diffs.shape)
+        lstm_inputs = torch.cat([losses.view(1,32,1), loss_diffs.view(1,32,1)], dim=-1)# [batch_size, 12, 1]
+        output, (hidden_fw, hidden_bw) = self.lstm(lstm_inputs)  # 双向 LSTM 输出
 
         # 拼接隐藏状态
-        h = torch.cat([hidden_fw.permute(1, 0, 2).view(32, -1), hidden_bw.permute(1, 0, 2).view(32, -1)], dim=-1)  # [batch_size, 2]
+        h = torch.cat([hidden_fw[0] , hidden_bw[0] ], dim=1) # [batch_size, 2]
 
         # 拼接特征
-        feat = torch.cat([label_inputs, epoch_inputs, h], dim=-1)  # [batch_size, label_size + epoch_size + 2]
+        feat = torch.cat([label_inputs, epoch_inputs, h], dim=1)  # [batch_size, label_size + epoch_size + 2]
 
         # 全连接层计算权重 v
         fc1_out = torch.tanh(self.fc1(feat))  # [batch_size, num_fc_nodes]
@@ -50,11 +51,7 @@ class MentorNet(nn.Module):
         return v
     
 def sigmoid(x):
-    # if torch.isnan(x).any() or torch.isinf(x).any():  
-    #     print("Detected NaN or Inf in x!")
-    #     print(x)
-    #     exit()
-    x = x.detach().cpu().numpy()  # 先分离计算图，再移到 CPU 并转换为 numpy 数组
+    x = x.cpu().detach().numpy() # 先分离计算图，再移到 CPU 并转换为 numpy 数组
     return 1 / (1 + np.exp(-x)) 
 
 # class MentorNet(nn.Module):

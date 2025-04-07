@@ -7,10 +7,10 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 # 训练命令
 command = [
     "python", "train.py",
-    "--config_file", "configs/cuhk03/swin_base.yml",
+    "--config_file", "configs/market/swin_base.yml",
     "MODEL.PRETRAIN_CHOICE", "'self'",
     "MODEL.PRETRAIN_PATH", "'./checkpoint_tea.pth'",
-    "OUTPUT_DIR", "'./log/cuhk03/swin_base'",
+    "OUTPUT_DIR", "'./log/market/swin_base'",
     "SOLVER.BASE_LR", "0.0002",
     "SOLVER.OPTIMIZER_NAME", "'SGD'",
     "MODEL.SEMANTIC_WEIGHT", "0.2"

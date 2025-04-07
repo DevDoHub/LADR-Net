@@ -274,7 +274,7 @@ class build_transformer(nn.Module):
         return bio_fusion, clot_fusion
 
     def forward(self, x, instruction, label=None, cam_label= None, view_label=None):
-        instruction_text = self.tokenizer(instruction, padding='max_length', max_length=35, return_tensors="pt").to('cuda')
+        instruction_text = self.tokenizer(instruction, truncation=True, padding='max_length', max_length=35, return_tensors="pt").to('cuda')
         # extract text features
         instruction_text = instruction_text.to('cuda')
         text_output = self.text_encoder.bert(instruction_text.input_ids, attention_mask=instruction_text.attention_mask, return_dict=True, mode='text')
@@ -303,9 +303,7 @@ class build_transformer(nn.Module):
 
         if self.reduce_feat_dim:
             logits = self.fcneck(global_feat)
-
-        bio_f = self.fusion_feat_bn(bio_fusion[:, 0])#TODO
-        clot_f = self.fusion_feat_bn(clot_fusion[:, 0])
+            
         feat = self.bottleneck(global_feat)
         feat_cls = self.dropout(feat)
         f_logits = self.classifier(bio_f)

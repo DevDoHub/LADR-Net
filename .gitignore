@@ -38,3 +38,5 @@ __pycache__/
 /bert-base-uncased1/
 /bert-base-uncased2/
 /bert-base-uncased/
+/log/
+# 忽略特定文件
