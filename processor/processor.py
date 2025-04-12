@@ -62,6 +62,7 @@ def do_train(cfg,
             target = vid.to(device)
             target_cam = target_cam.to(device)
             target_view = target_view.to(device)
+        
             with amp.autocast(enabled=True):
                 # batch = img.size(0)
                 # instruction = ('do_not_change_clothes',) * batch
