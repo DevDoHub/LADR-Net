@@ -27,7 +27,7 @@ def do_train(cfg,
     # eval_period = 1#TODO
     loss_moving_avg = 0.0  # 在循环开始之前初始化滑动平均损失
     # loss_moving_average_decay = 0.9  # 滑动平均损失的衰减率
-    loss_moving_average_decay = 0.5
+    loss_moving_average_decay = 0.3
     device = "cuda"
     epochs = cfg.SOLVER.MAX_EPOCHS
 
@@ -44,11 +44,11 @@ def do_train(cfg,
     acc_meter = AverageMeter()
     mentornet = MentorNet(label_embedding_size=8,
                         epoch_embedding_size=6, 
-                        num_label_embedding=751,
+                        num_label_embedding=767,
                         num_fc_nodes=100).to('cuda')
     loss_p_percentile = list(torch.linspace(30, 90, steps=121))
     burn_in_epoch = 0#12到24
-    evaluator = R1_mAP_eval(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM)
+    evaluator = R1_mAP_eval(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM, reranking=cfg.TEST.RE_RANKING)
     scaler = amp.GradScaler()
     # train
 
@@ -64,7 +64,7 @@ def do_train(cfg,
         n_iter_overall = 0
     
 
-        for n_iter, (img, _, vid, target_cam, target_view) in enumerate(train_loader):
+        for n_iter, (img, instruction, vid, target_cam, target_view) in enumerate(train_loader):
             n_iter_overall += 1
             optimizer.zero_grad()
             optimizer_center.zero_grad()
@@ -72,10 +72,10 @@ def do_train(cfg,
             target = vid.to(device)
             target_cam = target_cam.to(device)
             target_view = target_view.to(device)
-
+            # print('instruction:', instruction)    
             with amp.autocast(enabled=True):
                 batch = img.size(0)
-                instruction = ('do_not_change_clothes',) * batch
+                # instruction = ('do_not_change_clothes',) * batch
 
                 # --------- 计算原始 loss -------------
                 feat, bio_f, clot_f, score, f_logits, c_logits, _, text_embeds_s = model(
@@ -90,7 +90,7 @@ def do_train(cfg,
                 # 计算 loss 分位数（percentile_loss）
                 current_p = float(loss_p_percentile[epoch].to(device))
                 # percentile_loss = torch.quantile(loss.detach(), q=current_p/ 100.0 ).to(device)  # 取 20% 分位损失
-                percentile_loss = torch.quantile(loss.detach(), q=0.2 ).to(device)  # 取 20% 分位损失
+                percentile_loss = torch.quantile(loss.detach(), q=0.3 ).to(device)  # 取 20% 分位损失
                 loss_moving_avg = loss_moving_average_decay  * loss_moving_avg + (1 - loss_moving_average_decay)  * percentile_loss  # 更新滑动平均损失
                 lossdiff = loss - loss_moving_avg.to(device)  # 计算损失与滑动均值的差异
 
@@ -111,7 +111,9 @@ def do_train(cfg,
                 v = sigmoid(mentornet(input_data))  # MentorNet 计算权重 (batch, 1)
           
                 v = torch.as_tensor(v, dtype=torch.float32).to(device)  # 转换为 float32 类型
-                v = torch.maximum(v, upper_bound)  # 限制 v 的最大值
+                # v = torch.maximum(v, upper_bound)  # 限制 v 的最大值
+                v = torch.maximum(v, v_ones.to(v.device))
+                
 
                 # 1. 阻断 v 的梯度
                 v = v.detach()  # v 的梯度被阻断，不会在反向传播中计算
@@ -204,13 +206,13 @@ def do_train(cfg,
                     torch.cuda.empty_cache()
             else:
                 model.eval()
-                for n_iter, (img, _, vid, camid, camids, target_view, _) in enumerate(val_loader):
+                for n_iter, (img, instruction, vid, camid, camids, target_view, _) in enumerate(val_loader):
                     with torch.no_grad():
                         img = img.to(device)
                         camids = camids.to(device)
                         target_view = target_view.to(device)
                         batch = img.size(0)
-                        instruction = ('do_not_change_clothes',) * batch
+                        # instruction = ('do_not_change_clothes',) * batch
 
                         # feat, _ = model(img, cam_label=camids, view_label=target_view)
                         feat, bio_f, clot_f, f_logits, c_logits, _, text_embeds_s = model(img, instruction, cam_label=camids, view_label=target_view )
