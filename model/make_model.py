@@ -11,6 +11,7 @@ from .backbones.resnet_ibn_a import resnet50_ibn_a,resnet101_ibn_a
 
 from model.backbones.tokenization_bert import BertTokenizer
 from model.backbones.xbert import BertConfig, BertForMaskedLM
+from model.backbones.vit_pytorch import Block
 
 def shuffle_unit(features, shift, group, begin=1):
 
@@ -199,6 +200,12 @@ class build_transformer(nn.Module):
         self.text_encoder = BertForMaskedLM.from_pretrained('bert-base-uncased', config=bert_config)
         self.conv_layer = nn.Conv1d(in_channels=768, out_channels=1024, kernel_size=1)
 
+        self.TransReid = nn.Sequential(
+            Block(dim=1024, num_heads=16, qkv_bias=True),
+            Block(dim=1024, num_heads=16, qkv_bias=True),
+            Block(dim=1024, num_heads=16, qkv_bias=True)
+        )
+
         self.base = factory[cfg.MODEL.TRANSFORMER_TYPE](img_size=cfg.INPUT.SIZE_TRAIN, drop_path_rate=cfg.MODEL.DROP_PATH, drop_rate= cfg.MODEL.DROP_OUT,attn_drop_rate=cfg.MODEL.ATT_DROP_RATE, pretrained=model_path, convert_weights=convert_weights, semantic_weight=semantic_weight)
         if model_path != '':
             self.base.init_weights(model_path)
@@ -238,11 +245,11 @@ class build_transformer(nn.Module):
         fusion_layers = []
 
         self.num_features = 1024
-        for i in range(3):#TODO 3
+        # for i in range(3):#TODO 3
             # if net_config.attn_type=='fc':
-            fusion_layers.append(nn.Linear(self.num_features, self.num_features))
+            # fusion_layers.append(nn.Linear(self.num_features, self.num_features))
             # else:
-                # fusion_layers.append(copy.deepcopy(self.visual_encoder.blocks[-i]))
+        fusion_layers.append(self.TransReid)
         self.fusion = nn.Sequential(*fusion_layers)
         self.fusion_feat_bn = nn.BatchNorm1d(self.num_features)
         self.fusion_feat_bn.bias.requires_grad_(False)
@@ -267,7 +274,7 @@ class build_transformer(nn.Module):
         return bio_fusion, clot_fusion
 
     def forward(self, x, instruction, label=None, cam_label= None, view_label=None):
-        instruction_text = self.tokenizer(instruction, padding='max_length', max_length=35, return_tensors="pt").to('cuda')
+        instruction_text = self.tokenizer(instruction, truncation=True, padding='max_length', max_length=35, return_tensors="pt").to('cuda')
         # extract text features
         instruction_text = instruction_text.to('cuda')
         text_output = self.text_encoder.bert(instruction_text.input_ids, attention_mask=instruction_text.attention_mask, return_dict=True, mode='text')
@@ -296,9 +303,7 @@ class build_transformer(nn.Module):
 
         if self.reduce_feat_dim:
             logits = self.fcneck(global_feat)
-
-        bio_f = self.fusion_feat_bn(bio_fusion[:, 0])#TODO
-        clot_f = self.fusion_feat_bn(clot_fusion[:, 0])
+            
         feat = self.bottleneck(global_feat)
         feat_cls = self.dropout(feat)
         f_logits = self.classifier(bio_f)
@@ -318,7 +323,7 @@ class build_transformer(nn.Module):
                 return feat, featmaps
             else:
                 # print("Test with feature before BN")
-                return global_feat,  featmaps
+                return global_feat, bio_f, clot_f, f_logits, c_logits, featmaps, text_embeds_s
 
     def load_param(self, trained_path):
         param_dict = torch.load(trained_path, map_location = 'cpu')
