@@ -1316,8 +1316,8 @@ class SwinTransformer(BaseModule):
 
             state_dict = OrderedDict()
             for k, v in _state_dict.items():
-                if k.startswith('backbone.'):
-                    state_dict[k[9:]] = v
+                if k.startswith('base.'):
+                    state_dict[k[5:]] = v
 
             # strip prefix of state_dict
             if list(state_dict.keys())[0].startswith('module.'):
