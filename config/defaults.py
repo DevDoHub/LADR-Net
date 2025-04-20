@@ -209,3 +209,8 @@ _C.TEST.EVAL = False
 # ---------------------------------------------------------------------------- #
 # Path to checkpoint and saved log of trained model
 _C.OUTPUT_DIR = ""
+
+
+# 在config.py中的TEST部分添加
+_C.TEST.GENERATE_HEATMAPS = True  # 是否生成热力图
+_C.TEST.HEATMAP_MAX_IMAGES = 20    # 最多生成多少张热力图
