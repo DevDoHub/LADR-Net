@@ -37,3 +37,6 @@ __pycache__/
 *.pyo
 /bert-base-uncased1/
 /bert-base-uncased/
+
+/log/
+
