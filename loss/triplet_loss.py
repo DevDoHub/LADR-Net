@@ -161,7 +161,7 @@ class TripletLoss(nn.Module):
         super(TripletLoss, self).__init__()
         self.margin = margin
         self.normalize_feature = normalize_feature
-        self.margin_loss = nn.MarginRankingLoss(margin=margin).cuda()
+        self.margin_loss = nn.MarginRankingLoss(margin=margin, reduction='none').cuda()
 
     def forward(self, emb, label, clot_feats_s):
         if self.normalize_feature:

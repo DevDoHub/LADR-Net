@@ -61,7 +61,7 @@ def make_loss(cfg, num_classes):    # modified by gu
                         ID_LOSS = sum(ID_LOSS) / len(ID_LOSS)
                         ID_LOSS = 0.5 * ID_LOSS + 0.5 * F.cross_entropy(score[0], target)
                     else:
-                        ID_LOSS = F.cross_entropy(score, target)
+                        ID_LOSS = F.cross_entropy(score, target, reduction='none')
 
                     if isinstance(feat, list):
                             TRI_LOSS = [triplet_loss(feats, target)[0] for feats in feat[1:]]
