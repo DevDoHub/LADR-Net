@@ -52,7 +52,7 @@ class MentorNet(nn.Module):
     
 def sigmoid(x):
     x = x.cpu().detach().numpy() # 先分离计算图，再移到 CPU 并转换为 numpy 数组
-    return 1 / (1 + np.exp(-x)) 
+    return 2 / (1 + np.exp(-x)) 
 
 # class MentorNet(nn.Module):
 #     def __init__(self, input_dim=3, hidden_dim=32):

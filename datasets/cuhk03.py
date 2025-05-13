@@ -6,7 +6,7 @@
 
 import glob
 import re
-
+import json
 import os.path as osp
 
 from .bases import BaseImageDataset
@@ -55,9 +55,10 @@ class Cuhk03(BaseImageDataset):
         if not osp.exists(self.gallery_dir):
             raise RuntimeError("'{}' is not available".format(self.gallery_dir))
 
+
     def _process_dir(self, dir_path, relabel=False):
         img_paths = glob.glob(osp.join(dir_path, '*.png'))
-        pattern = re.compile(r'([-\d]+)_c(\d)')
+        pattern = re.compile(r'([-\d]+)_c([\d])')
 
         pid_container = set()
         for img_path in sorted(img_paths):
@@ -66,13 +67,24 @@ class Cuhk03(BaseImageDataset):
             pid_container.add(pid)
         pid2label = {pid: label for label, pid in enumerate(pid_container)}
         dataset = []
+        with open('./data/cuhk03/output_file_cuhk03_labeled.json', 'rb') as file:
+            cuhk03_gpt_v1 = json.load(file)
+
         for img_path in sorted(img_paths):
+            pattern = re.compile(r'([-\d]+)_c([\d])')
+
             pid, camid = map(int, pattern.search(img_path).groups())
             if pid == -1: continue  # junk images are just ignored
-            assert 0 <= pid <= 1467  # pid == 0 means background
+            assert 0 <= pid <= 1501  # pid == 0 means background
             assert 1 <= camid <= 6
             camid -= 1  # index starts from 0
             if relabel: pid = pid2label[pid]
-
-            dataset.append((img_path, self.pid_begin + pid, camid, 1))
+            # pattern = re.compile(r'([\d]+)_c.*.jpg')
+            # pattern = re.compile(r'([-\d]+)_c([\d])')
+            # match = pattern.search(img_path)
+            if pid in [-1, 0]:
+                des = 'Noisy point'
+            else:
+                des = cuhk03_gpt_v1[img_path]
+            dataset.append((img_path,  des,self.pid_begin + pid, camid, 1))
         return dataset
