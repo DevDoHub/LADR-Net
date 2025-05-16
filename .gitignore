@@ -11,7 +11,7 @@ node_modules/
 
 # 忽略 dist 目录
 dist/
-
+msmt17-3090-77-5/
 # 忽略特定文件
 
 # 忽略特定目录
@@ -22,7 +22,6 @@ __pycache__/
 *.bin
 *.pth
 
-logs/
 
 *.pth.tar
 
