@@ -1,7 +1,7 @@
 
 import glob
 import re
-
+import json
 import os.path as osp
 
 from .bases import BaseImageDataset
@@ -21,7 +21,7 @@ class MSMT17(BaseImageDataset):
     # images: 32621 (train) + 11659 (query) + 82161 (gallery)
     # cameras: 15
     """
-    dataset_dir = 'MSMT17'
+    dataset_dir = 'msmt17'
 
     def __init__(self, root='', verbose=True, pid_begin=0, **kwargs):
         super(MSMT17, self).__init__()
@@ -64,6 +64,8 @@ class MSMT17(BaseImageDataset):
         with open(list_path, 'r') as txt:
             lines = txt.readlines()
         dataset = []
+        with open('./data/msmt17/msmt17.json', 'rb') as file:
+            msmt17_gpt_v1 = json.load(file)
         pid_container = set()
         cam_container = set()
         for img_idx, img_info in enumerate(lines):
@@ -71,7 +73,11 @@ class MSMT17(BaseImageDataset):
             pid = int(pid)  # no need to relabel
             camid = int(img_path.split('_')[2])
             img_path = osp.join(dir_path, img_path)
-            dataset.append((img_path,  self.pid_begin +pid, camid-1, 1))
+            if msmt17_gpt_v1[img_path[2:]]:
+                des = msmt17_gpt_v1[img_path[2:]]
+            else:
+                des = 'Noisy point'
+            dataset.append((img_path,des,self.pid_begin +pid, camid-1, 1))
             pid_container.add(pid)
             cam_container.add(camid)
         print(cam_container, 'cam_container')

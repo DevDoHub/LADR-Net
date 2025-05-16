@@ -8,7 +8,8 @@ MODEL:
   DEVICE_ID: ('0')
   TRANSFORMER_TYPE: 'swin_base_patch4_window7_224'
   STRIDE_SIZE: [16, 16]
-
+  FUSION_BRANCH: 'bio+clot'
+  
 INPUT:
   SIZE_TRAIN: [384, 128]
   SIZE_TEST: [384, 128]
@@ -20,7 +21,7 @@ INPUT:
 
 DATASETS:
   NAMES: ('msmt17')
-  ROOT_DIR: ('path/to/msmt17/datasets')
+  ROOT_DIR: ('./data')
 
 DATALOADER:
   SAMPLER: 'softmax_triplet'
@@ -32,7 +33,7 @@ SOLVER:
   MAX_EPOCHS: 120
   BASE_LR: 0.0008
   WARMUP_EPOCHS: 20
-  IMS_PER_BATCH: 64
+  IMS_PER_BATCH: 32
   WARMUP_METHOD: 'cosine'
   LARGE_FC_LR: False
   CHECKPOINT_PERIOD: 120
@@ -44,7 +45,7 @@ SOLVER:
 
 TEST:
   EVAL: True
-  IMS_PER_BATCH: 256
+  IMS_PER_BATCH: 32
   RE_RANKING: False
   WEIGHT: ''
   NECK_FEAT: 'before'
