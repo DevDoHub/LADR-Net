@@ -9,6 +9,7 @@ node_modules/
 # 忽略 .env 文件
 .env
 .tar.gz
+.gz 
 # 忽略 dist 目录
 dist/
 msmt17-3090-77-5/
@@ -37,3 +38,5 @@ __pycache__/
 /bert-base-uncased1/
 /bert-base-uncased2/
 /bert-base-uncased/
+
+/msmt17*

@@ -9,7 +9,7 @@ from utils.meter import AverageMeter
 from utils.metrics import R1_mAP_eval
 from torch.cuda import amp
 import torch.distributed as dist
-
+from loss.Mentor import MentorNet, sigmoid
 def do_train(cfg,
              model,
              center_criterion,
@@ -24,7 +24,9 @@ def do_train(cfg,
     checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
     eval_period = cfg.SOLVER.EVAL_PERIOD
     # eval_period = 1#TODO
-
+    loss_moving_avg = 0.0  # 在循环开始之前初始化滑动平均损失
+    # loss_moving_average_decay = 0.9  # 滑动平均损失的衰减率
+    loss_moving_average_decay = 0.3
     device = "cuda"
     epochs = cfg.SOLVER.MAX_EPOCHS
 
@@ -39,7 +41,13 @@ def do_train(cfg,
     model.to(local_rank)
     loss_meter = AverageMeter()
     acc_meter = AverageMeter()
-
+    # mentornet = MentorNet(label_embedding_size=8,
+    #                     epoch_embedding_size=6, 
+    #                     num_label_embedding=1041,
+    #                     num_fc_nodes=100).to('cuda')
+    mentornet = 'mentornet'
+    # loss_p_percentile = list(torch.linspace(30, 90, steps=121))
+    burn_in_epoch = 100#12到24
     evaluator = R1_mAP_eval(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM, reranking=cfg.TEST.RE_RANKING)
     scaler = amp.GradScaler()
     # train
@@ -53,7 +61,12 @@ def do_train(cfg,
         acc_meter.reset()
         evaluator.reset()
         model.train()
-        n_iter_overall = 0
+        if epoch == 69:
+            mentornet = MentorNet(label_embedding_size=8,
+                        epoch_embedding_size=6, 
+                        num_label_embedding=1041,
+                        num_fc_nodes=100).to('cuda')
+        n_iter_overall = 70
         for n_iter, (img, instruction, vid, target_cam, target_view) in enumerate(train_loader):
             n_iter_overall += 1
             optimizer.zero_grad()
@@ -63,12 +76,36 @@ def do_train(cfg,
             target_cam = target_cam.to(device)
             target_view = target_view.to(device)
             with amp.autocast(enabled=True):
+                batch = img.size(0)
                 # batch = img.size(0)
                 # instruction = ('do_not_change_clothes',) * batch
                 # score, feat, _ = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
                 feat, bio_f, clot_f, score, f_logits, c_logits, _, text_embeds_s = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
                 loss = loss_fn(score, f_logits, c_logits, feat, bio_f, clot_f, target, text_embeds_s, target_cam)
+                
+                v_ones = torch.ones_like(loss, dtype=torch.float32).detach()
+                if epoch < 70:
+                    loss = loss * v_ones
 
+                else:
+                    loss_ = loss
+                    percentile_loss = torch.quantile(loss_.detach(), q=0.3 ).to(device)  # 取 20% 分位损失
+                    loss_moving_avg = loss_moving_average_decay  * loss_moving_avg + (1 - loss_moving_average_decay)  * percentile_loss  # 更新滑动平均损失
+                    lossdiff = loss - loss_moving_avg.to(device)  # 计算损失与滑动均值的差异
+
+                    # 确保 epoch 和 burn_in_epoch 是张量
+                    epoch_tensor = torch.tensor(epoch, device=loss.device)
+                    burn_in_threshold = torch.tensor(burn_in_epoch - 1, device=loss.device)
+
+                    # MentorNet 计算 v
+                    epoch_tensor = torch.full((batch, 1), fill_value=epoch, dtype=torch.float32).to(device) 
+                    input_data = torch.cat([loss.unsqueeze(1), lossdiff.unsqueeze(1), target.unsqueeze(1), epoch_tensor], dim=1).to('cuda')  # 拼接输入
+                    v = sigmoid(mentornet(input_data))  # MentorNet 计算权重 (batch, 1)
+                    v = torch.from_numpy(v).to(device)
+                    loss = loss * v
+
+                loss = loss.mean()
+                
             scaler.scale(loss).backward()
 
             scaler.step(optimizer)
