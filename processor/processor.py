@@ -11,6 +11,322 @@ from torch.cuda import amp
 import torch.distributed as dist
 from loss.Mentor import MentorNet, mixup_data, sigmoid
 
+import matplotlib.pyplot as plt
+from sklearn.manifold import TSNE
+import numpy as np
+import umap.umap_ as umap
+from mpl_toolkits.mplot3d import Axes3D
+import plotly.express as px
+import plotly.graph_objects as go
+
+
+# 读取Pickle文件
+def read_pickle_file(file_path):
+    """
+    读取Pickle文件
+    
+    Args:
+        file_path: Pickle文件路径
+    
+    Returns:
+        data: 读取的数据
+    """
+    import pickle
+    with open(file_path, 'rb') as f:
+        data = pickle.load(f)
+    return data
+
+# 保存Pickle文件
+def save_pickle_file(data, file_path):
+    """
+    保存数据到Pickle文件
+    
+    Args:
+        data: 要保存的数据
+        file_path: Pickle文件路径
+    """
+    import pickle
+    with open(file_path, 'wb') as f:
+        pickle.dump(data, f)
+
+# 可视化t-SNE
+def visualize_tsne(features, labels, output_dir, perplexity=30, n_iter=1000, filename='tsne_visualization'):
+    """
+    使用t-SNE可视化特征空间
+    
+    Args:
+        features: 特征向量 numpy数组，形状为 [n_samples, n_features]
+        labels: 标签 numpy数组，形状为 [n_samples]
+        output_dir: 输出目录
+        perplexity: t-SNE的perplexity参数
+        n_iter: t-SNE的迭代次数
+        filename: 输出文件名
+    """
+    # 创建输出目录
+    os.makedirs(output_dir, exist_ok=True)
+    
+    print(f"开始进行t-SNE降维, 处理{len(features)}个样本...")
+    
+    # 使用t-SNE降维
+    tsne = TSNE(n_components=2, perplexity=perplexity, n_iter=n_iter, random_state=42)
+    features_embedded = tsne.fit_transform(features)
+    
+    print("t-SNE降维完成，开始绘图...")
+    
+    # 获取唯一标签
+    unique_labels = np.unique(labels)
+    colors = plt.cm.rainbow(np.linspace(0, 1, len(unique_labels)))
+    
+    # 创建图形
+    plt.figure(figsize=(12, 10))
+    
+    # 为每个类别绘制散点图
+    for i, label in enumerate(unique_labels):
+        indices = labels == label
+        plt.scatter(
+            features_embedded[indices, 0],
+            features_embedded[indices, 1],
+            c=[colors[i]],
+            label=f'ID {label}',
+            alpha=0.7,
+            s=40
+        )
+    
+    # 如果类别太多，不显示图例
+    if len(unique_labels) <= 20:  # 限制图例条目数量
+        plt.legend(loc='best')
+        
+    plt.title('t-SNE Visualization of ReID Features')
+    plt.xlabel('t-SNE Dimension 1')
+    plt.ylabel('t-SNE Dimension 2')
+    plt.grid(True, linestyle='--', alpha=0.7)
+    
+    # 保存图像
+    output_path = os.path.join(output_dir, f'{filename}.png')
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    print(f"t-SNE可视化已保存至 {output_path}")
+    
+    # 保存PDF版本用于论文
+    pdf_path = os.path.join(output_dir, f'{filename}.pdf')
+    plt.savefig(pdf_path, format='pdf', bbox_inches='tight')
+    print(f"t-SNE可视化(PDF)已保存至 {pdf_path}")
+    
+    plt.close()
+
+# 改进的UMAP可视化 - 支持2D和3D
+def visualize_umap_enhanced(features, labels, output_dir, n_neighbors=30, min_dist=0.0, 
+                           n_components=2, filename='umap_visualization', max_display_ids=50):
+    """
+    使用UMAP可视化特征空间 - 增强版本
+    
+    Args:
+        features: 特征向量 numpy数组，形状为 [n_samples, n_features]
+        labels: 标签 numpy数组，形状为 [n_samples]
+        output_dir: 输出目录
+        n_neighbors: UMAP的n_neighbors参数，增加以获得更全局的结构
+        min_dist: UMAP的min_dist参数，减少以获得更紧密的聚类
+        n_components: 降维后的维数 (2或3)
+        filename: 输出文件名
+        max_display_ids: 最大显示的ID数量
+    """
+    # 创建输出目录
+    os.makedirs(output_dir, exist_ok=True)
+    
+    print(f"开始进行UMAP降维, 处理{len(features)}个样本...")
+    unique_labels = np.unique(labels)
+    print(f"总共有{len(unique_labels)}个不同的ID")
+    
+    # 使用UMAP降维
+    reducer = umap.UMAP(n_neighbors=n_neighbors, min_dist=min_dist, 
+                       n_components=n_components, random_state=42, 
+                       metric='cosine')  # 使用cosine距离，更适合特征向量
+    features_embedded = reducer.fit_transform(features)
+    
+    print(f"UMAP降维完成({n_components}D)，开始绘图...")
+    
+    if n_components == 2:
+        # 2D可视化 - 只显示部分ID以避免颜色混乱
+        _visualize_2d_selective(features_embedded, labels, output_dir, filename, max_display_ids)
+        # 2D可视化 - 密度图
+        _visualize_2d_density(features_embedded, labels, output_dir, filename)
+    elif n_components == 3:
+        # 3D可视化
+        _visualize_3d_interactive(features_embedded, labels, output_dir, filename, max_display_ids)
+        _visualize_3d_matplotlib(features_embedded, labels, output_dir, filename, max_display_ids)
+
+def _visualize_2d_selective(features_embedded, labels, output_dir, filename, max_display_ids):
+    """2D可视化 - 选择性显示部分ID"""
+    unique_labels = np.unique(labels)
+    
+    # 随机选择一部分ID进行可视化
+    if len(unique_labels) > max_display_ids:
+        selected_labels = np.random.choice(unique_labels, max_display_ids, replace=False)
+        print(f"随机选择{max_display_ids}个ID进行可视化")
+    else:
+        selected_labels = unique_labels
+    
+    # 创建图形
+    plt.figure(figsize=(15, 12))
+    
+    # 为选中的ID绘制散点图
+    colors = plt.cm.tab20(np.linspace(0, 1, len(selected_labels)))
+    for i, label in enumerate(selected_labels):
+        indices = labels == label
+        plt.scatter(
+            features_embedded[indices, 0],
+            features_embedded[indices, 1],
+            c=[colors[i]],
+            label=f'ID {label}',
+            alpha=0.8,
+            s=30
+        )
+    
+    # 为其他ID绘制灰色背景点
+    other_indices = ~np.isin(labels, selected_labels)
+    if np.any(other_indices):
+        plt.scatter(
+            features_embedded[other_indices, 0],
+            features_embedded[other_indices, 1],
+            c='lightgray',
+            alpha=0.3,
+            s=10,
+            label='Other IDs'
+        )
+    
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', ncol=2)
+    plt.title(f'UMAP Visualization of ReID Features (显示{len(selected_labels)}个ID)')
+    plt.xlabel('UMAP Dimension 1')
+    plt.ylabel('UMAP Dimension 2')
+    plt.grid(True, linestyle='--', alpha=0.3)
+    
+    # 保存图像
+    output_path = os.path.join(output_dir, f'{filename}_2d_selective.png')
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    print(f"2D选择性UMAP可视化已保存至 {output_path}")
+    plt.close()
+
+def _visualize_2d_density(features_embedded, labels, output_dir, filename):
+    """2D可视化 - 密度图"""
+    plt.figure(figsize=(12, 10))
+    
+    # 绘制密度散点图
+    plt.scatter(features_embedded[:, 0], features_embedded[:, 1], 
+               c=labels, cmap='tab20', alpha=0.6, s=20)
+    
+    plt.colorbar(label='Person ID')
+    plt.title('UMAP Visualization - Density Plot')
+    plt.xlabel('UMAP Dimension 1')
+    plt.ylabel('UMAP Dimension 2')
+    plt.grid(True, linestyle='--', alpha=0.3)
+    
+    # 保存图像
+    output_path = os.path.join(output_dir, f'{filename}_2d_density.png')
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    print(f"2D密度UMAP可视化已保存至 {output_path}")
+    plt.close()
+
+def _visualize_3d_matplotlib(features_embedded, labels, output_dir, filename, max_display_ids):
+    """3D可视化 - matplotlib版本"""
+    unique_labels = np.unique(labels)
+    
+    # 选择部分ID进行可视化
+    if len(unique_labels) > max_display_ids:
+        selected_labels = np.random.choice(unique_labels, max_display_ids, replace=False)
+    else:
+        selected_labels = unique_labels
+    
+    # 创建3D图形
+    fig = plt.figure(figsize=(15, 12))
+    ax = fig.add_subplot(111, projection='3d')
+    
+    # 为选中的ID绘制散点图
+    colors = plt.cm.tab20(np.linspace(0, 1, len(selected_labels)))
+    for i, label in enumerate(selected_labels):
+        indices = labels == label
+        ax.scatter(
+            features_embedded[indices, 0],
+            features_embedded[indices, 1],
+            features_embedded[indices, 2],
+            c=[colors[i]],
+            label=f'ID {label}',
+            alpha=0.8,
+            s=30
+        )
+    
+    # 为其他ID绘制灰色背景点
+    other_indices = ~np.isin(labels, selected_labels)
+    if np.any(other_indices):
+        ax.scatter(
+            features_embedded[other_indices, 0],
+            features_embedded[other_indices, 1],
+            features_embedded[other_indices, 2],
+            c='lightgray',
+            alpha=0.3,
+            s=10,
+            label='Other IDs'
+        )
+    
+    ax.set_xlabel('UMAP Dimension 1')
+    ax.set_ylabel('UMAP Dimension 2')
+    ax.set_zlabel('UMAP Dimension 3')
+    ax.set_title(f'3D UMAP Visualization of ReID Features (显示{len(selected_labels)}个ID)')
+    
+    # 保存图像
+    output_path = os.path.join(output_dir, f'{filename}_3d_matplotlib.png')
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    print(f"3D matplotlib UMAP可视化已保存至 {output_path}")
+    plt.close()
+
+def _visualize_3d_interactive(features_embedded, labels, output_dir, filename, max_display_ids):
+    """3D可视化 - 交互式版本（需要安装plotly）"""
+    try:
+        import plotly.express as px
+        import plotly.graph_objects as go
+        
+        unique_labels = np.unique(labels)
+        
+        # 选择部分ID进行可视化
+        if len(unique_labels) > max_display_ids:
+            selected_indices = np.isin(labels, np.random.choice(unique_labels, max_display_ids, replace=False))
+        else:
+            selected_indices = np.ones(len(labels), dtype=bool)
+        
+        # 创建交互式3D散点图
+        fig = px.scatter_3d(
+            x=features_embedded[selected_indices, 0],
+            y=features_embedded[selected_indices, 1],
+            z=features_embedded[selected_indices, 2],
+            color=labels[selected_indices].astype(str),
+            title='Interactive 3D UMAP Visualization of ReID Features',
+            labels={'x': 'UMAP Dimension 1', 'y': 'UMAP Dimension 2', 'z': 'UMAP Dimension 3'},
+            opacity=0.7
+        )
+        
+        fig.update_traces(marker_size=3)
+        fig.update_layout(
+            scene=dict(
+                xaxis_title='UMAP Dimension 1',
+                yaxis_title='UMAP Dimension 2',
+                zaxis_title='UMAP Dimension 3'
+            ),
+            width=1200,
+            height=800
+        )
+        
+        # 保存交互式HTML文件
+        output_path = os.path.join(output_dir, f'{filename}_3d_interactive.html')
+        fig.write_html(output_path)
+        print(f"3D交互式UMAP可视化已保存至 {output_path}")
+        
+    except ImportError:
+        print("未安装plotly，跳过交互式3D可视化")
+
+# 保留原有的UMAP函数以保持兼容性
+def visualize_umap(features, labels, output_dir, n_neighbors=15, min_dist=0.1, n_components=2, filename='umap_visualization'):
+    """原有的UMAP可视化函数 - 保持兼容性"""
+    visualize_umap_enhanced(features, labels, output_dir, n_neighbors, min_dist, n_components, filename)
+
+
 def do_train(cfg,
              model,
              center_criterion,
@@ -246,14 +562,9 @@ def do_inference(cfg,
     model.eval()
     img_path_list = []
     
-    # 添加热力图生成相关配置
-    # 在config.py中添加相应的配置项，默认不生成热力图
-    generate_heatmaps = cfg.TEST.GENERATE_HEATMAPS if hasattr(cfg.TEST, 'GENERATE_HEATMAPS') else False
-    heatmap_output_dir = os.path.join(cfg.OUTPUT_DIR, 'heatmaps') if generate_heatmaps else None
-    
-    # 只为一部分图像生成热力图，避免生成过多
-    heatmap_count = 0
-    heatmap_max = cfg.TEST.HEATMAP_MAX_IMAGES if hasattr(cfg.TEST, 'HEATMAP_MAX_IMAGES') else 20
+    # 用于收集特征和标签进行可视化
+    all_features = []
+    all_pids = []
     
     for n_iter, (img, instruction, pid, camid, camids, target_view, imgpath) in enumerate(val_loader):
         with torch.no_grad():
@@ -261,29 +572,22 @@ def do_inference(cfg,
             camids = camids.to(device)
             target_view = target_view.to(device)
             batch = img.size(0)
-            # instruction = ('do_not_change_clothes',) * batch
-            feat, bio_f, clot_f, f_logits, c_logits, _, text_embeds_s = model(img, instruction, cam_label=camids, view_label=target_view )
+
+            feat, bio_f, clot_f, f_logits, c_logits, _, text_embeds_s = model(img, instruction, cam_label=camids, view_label=target_view)
             bio_clot_feat = torch.cat([bio_f, clot_f], dim=1)
             evaluator.update((bio_clot_feat, pid, camid))
             img_path_list.extend(imgpath)
             
-            # 生成热力图（只为一部分样本生成）
-            if generate_heatmaps and heatmap_count < heatmap_max:
-                # 为当前批次生成热力图
-                current_batch_size = min(batch, heatmap_max - heatmap_count)
-                if current_batch_size > 0:
-                    # 临时解除no_grad上下文以获取梯度
-                    with torch.enable_grad():
-                        # 为选定样本生成热力图
-                        generate_attention_heatmap_matplotlib(
-                            model, 
-                            img[:current_batch_size].clone(), 
-                            imgpath[:current_batch_size], 
-                            heatmap_output_dir,
-                            instruction[:current_batch_size],
-                            device
-                        )
-                    heatmap_count += current_batch_size
+            # 收集特征和标签用于可视化
+            all_features.append(bio_clot_feat.cpu().numpy())
+            
+            # 处理pid的不同数据类型
+            if isinstance(pid, torch.Tensor):
+                all_pids.extend(pid.numpy())
+            elif isinstance(pid, (list, tuple)):
+                all_pids.extend(pid)
+            else:
+                all_pids.append(pid)
 
     cmc, mAP, _, _, _, _, _ = evaluator.compute()
     logger.info("Validation Results ")
@@ -291,224 +595,47 @@ def do_inference(cfg,
     for r in [1, 5, 10]:
         logger.info("CMC curve, Rank-{:<3}:{:.1%}".format(r, cmc[r - 1]))
     
-    if generate_heatmaps:
-        logger.info(f"Attention heatmaps generated and saved to {heatmap_output_dir}")
-        
+    # 进行增强的UMAP可视化
+    logger.info("开始生成增强UMAP可视化...")
+    all_features = np.concatenate(all_features, axis=0)
+    all_pids = np.array(all_pids)
+    
+    # 创建可视化输出目录
+    vis_output_dir = os.path.join(cfg.OUTPUT_DIR, 'visualizations')
+    
+    # 生成2D UMAP可视化
+    logger.info("生成2D UMAP可视化...")
+    visualize_umap_enhanced(
+        features=all_features,
+        labels=all_pids,
+        output_dir=vis_output_dir,
+        n_neighbors=30,  # 增加邻居数以获得更全局的结构
+        min_dist=0.0,    # 减少最小距离以获得更紧密的聚类
+        n_components=2,
+        filename='inference_umap_2d',
+        max_display_ids=50
+    )
+    
+    # 生成3D UMAP可视化
+    logger.info("生成3D UMAP可视化...")
+    visualize_umap_enhanced(
+        features=all_features,
+        labels=all_pids,
+        output_dir=vis_output_dir,
+        n_neighbors=30,
+        min_dist=0.0,
+        n_components=3,
+        filename='inference_umap_3d',
+        max_display_ids=50
+    )
+    
+    # 也保存特征和标签以备后续分析
+    features_save_path = os.path.join(vis_output_dir, 'inference_features.pkl')
+    save_pickle_file({
+        'features': all_features,
+        'pids': all_pids,
+        'img_paths': img_path_list
+    }, features_save_path)
+    logger.info(f"特征数据已保存至 {features_save_path}")
+    
     return cmc[0], cmc[4]
-
-def generate_attention_heatmap_matplotlib(model, img_tensor, img_paths, output_dir, instructions=None, device='cuda'):
-    """
-    使用改进的方法为输入图像生成注意力热力图
-    """
-    import matplotlib.pyplot as plt
-    from PIL import Image
-    import numpy as np
-    import os
-    from scipy.ndimage import gaussian_filter
-    
-    # 确保输出目录存在
-    os.makedirs(output_dir, exist_ok=True)
-    
-    # 确保模型处于评估模式
-    model.eval()
-    
-    # 如果没有提供instructions，使用默认值
-    batch_size = img_tensor.size(0)
-    if instructions is None:
-        instructions = ['do_not_change_clothes'] * batch_size
-    
-    # 为了获取梯度，需要启用梯度计算
-    img_tensor.requires_grad_(True)
-    
-    # 获取模型输出
-    camids = torch.zeros(batch_size, dtype=torch.long, device=img_tensor.device)
-    target_view = torch.zeros(batch_size, dtype=torch.long, device=img_tensor.device)
-    
-    # 1. 分别计算生物特征和服装特征的注意力图
-    feat, bio_f, clot_f, f_logits, c_logits, _, text_embeds_s = model(img_tensor, instructions, cam_label=camids, view_label=target_view)
-    
-    # 2. 使用组合特征作为目标（feat或bio_f+clot_f的组合）
-    # 这里使用生物特征和服装特征的组合，可能更适合人物再识别任务
-    target = torch.norm(torch.cat([bio_f, clot_f], dim=1), p=2, dim=1).mean()
-    
-    # 3. 反向传播
-    model.zero_grad()
-    target.backward()
-    
-    # 4. 获取输入图像的梯度
-    gradients = img_tensor.grad.detach()
-    
-    # 5. 计算梯度的绝对值最大值（而不是平均值），增强对比度
-    attention_maps = gradients.abs().max(dim=1)[0]  # 使用通道维度的最大值
-    
-    # 处理每个图像
-    for i in range(batch_size):
-        # 获取单个图像的注意力图
-        attention_map = attention_maps[i].cpu().numpy()
-        
-        # 6. 应用高斯平滑减少噪声
-        attention_map_smooth = gaussian_filter(attention_map, sigma=5)
-        
-        # 7. 应用阈值，只保留高激活区域
-        threshold = np.percentile(attention_map_smooth, 70)  # 保留前30%的强度
-        attention_map_filtered = np.where(attention_map_smooth > threshold, attention_map_smooth, 0)
-        
-        # 8. 归一化注意力图
-        attention_map_filtered = (attention_map_filtered - attention_map_filtered.min()) / (attention_map_filtered.max() - attention_map_filtered.min() + 1e-8)
-        
-        # 读取原始图像
-        img_path = img_paths[i]
-        img_name = os.path.basename(img_path)
-        orig_img = np.array(Image.open(img_path).convert('RGB'))
-        
-        # 调整注意力图大小以匹配原始图像
-        from skimage.transform import resize
-        attention_map_resized = resize(attention_map_filtered, (orig_img.shape[0], orig_img.shape[1]), 
-                                      preserve_range=True)
-        
-        # 创建图形
-        plt.figure(figsize=(18, 6))
-        
-        # 原始图像
-        plt.subplot(1, 3, 1)
-        plt.imshow(orig_img)
-        plt.title('Original Image')
-        plt.axis('off')
-        
-        # 热力图
-        plt.subplot(1, 3, 2)
-        plt.imshow(attention_map_resized, cmap='jet')
-        plt.colorbar(label='Attention Intensity')
-        plt.title('Attention Heatmap')
-        plt.axis('off')
-        
-        # 叠加图
-        plt.subplot(1, 3, 3)
-        plt.imshow(orig_img)
-        plt.imshow(attention_map_resized, cmap='jet', alpha=0.3)
-        plt.colorbar(label='Attention Intensity')
-        plt.title('Overlaid Heatmap')
-        plt.axis('off')
-        
-        # 调整布局
-        plt.tight_layout()
-        
-        # 保存结果
-        output_path = os.path.join(output_dir, f"heatmap_{os.path.splitext(img_name)[0]}.png")
-        plt.savefig(output_path, dpi=300, bbox_inches='tight')
-        plt.close()
-
-# def generate_attention_heatmap_matplotlib(model, img_tensor, img_paths, output_dir, instructions=None, device='cuda'):
-#     """
-#     使用matplotlib为输入图像生成注意力热力图
-    
-#     Args:
-#         model: 训练好的模型
-#         img_tensor: 输入图像张量
-#         img_paths: 原始图像路径列表
-#         output_dir: 热力图输出目录
-#         instructions: 文本指令列表
-#         device: 计算设备
-#     """
-#     import matplotlib.pyplot as plt
-#     from PIL import Image
-#     import numpy as np
-#     import os
-#     from skimage.transform import resize
-    
-#     # 确保输出目录存在
-#     os.makedirs(output_dir, exist_ok=True)
-    
-#     # 确保模型处于评估模式
-#     model.eval()
-    
-#     # 如果没有提供instructions，使用默认值
-#     batch_size = img_tensor.size(0)
-#     if instructions is None:
-#         instructions = ['do_not_change_clothes'] * batch_size
-    
-#     # 为了获取梯度，需要启用梯度计算
-#     img_tensor.requires_grad_(True)
-    
-#     # 获取模型输出
-#     camids = torch.zeros(batch_size, dtype=torch.long, device=img_tensor.device)
-#     target_view = torch.zeros(batch_size, dtype=torch.long, device=img_tensor.device)
-    
-#     feat, bio_f, clot_f, f_logits, c_logits, _, text_embeds_s = model(img_tensor, instructions, cam_label=camids, view_label=target_view)
-#     bio_clot_feat = torch.cat([bio_f, clot_f], dim=1)
-    
-#     # 使用特征的L2范数作为目标
-#     target = torch.norm(bio_clot_feat, p=2, dim=1).mean()
-    
-#     # 反向传播
-#     model.zero_grad()
-#     target.backward()
-    
-#     # 获取输入图像的梯度
-#     gradients = img_tensor.grad.detach()
-    
-#     # 计算梯度的绝对值平均，得到每个像素位置的重要性
-#     attention_maps = gradients.abs().mean(dim=1)
-    
-#     # 处理每个图像
-#     for i in range(batch_size):
-#         # 获取单个图像的注意力图
-#         attention_map = attention_maps[i].cpu().numpy()
-        
-#         # 归一化注意力图
-#         attention_map = (attention_map - attention_map.min()) / (attention_map.max() - attention_map.min() + 1e-8)
-        
-#         # 读取原始图像
-#         img_path = img_paths[i]
-#         img_name = os.path.basename(img_path)
-#         orig_img = np.array(Image.open(img_path).convert('RGB'))
-        
-#         # 调整注意力图大小以匹配原始图像
-#         attention_map_resized = resize(attention_map, (orig_img.shape[0], orig_img.shape[1]), 
-#                                       preserve_range=True)
-        
-#         # 创建图形
-#         plt.figure(figsize=(18, 6))
-        
-#         # 原始图像
-#         plt.subplot(1, 3, 1)
-#         plt.imshow(orig_img)
-#         plt.title('Original Image')
-#         plt.axis('off')
-        
-#         # 热力图
-#         plt.subplot(1, 3, 2)
-#         plt.imshow(attention_map_resized, cmap='jet')
-#         plt.colorbar(label='Attention Intensity')
-#         plt.title('Attention Heatmap')
-#         plt.axis('off')
-        
-#         # 叠加图
-#         plt.subplot(1, 3, 3)
-#         plt.imshow(orig_img)
-#         plt.imshow(attention_map_resized, cmap='jet', alpha=0.3)
-#         plt.colorbar(label='Attention Intensity')
-#         plt.title('Overlaid Heatmap')
-#         plt.axis('off')
-        
-#         # 调整布局
-#         plt.tight_layout()
-        
-#         # 保存结果
-#         output_path = os.path.join(output_dir, f"heatmap_{os.path.splitext(img_name)[0]}.png")
-#         plt.savefig(output_path, dpi=300, bbox_inches='tight')
-        
-#         # 保存PDF版本（矢量格式，适合论文）
-#         output_path_pdf = os.path.join(output_dir, f"heatmap_{os.path.splitext(img_name)[0]}.pdf")
-#         plt.savefig(output_path_pdf, format='pdf', bbox_inches='tight')
-        
-#         plt.close()
-        
-#         # # 单独保存热力图（便于论文中灵活使用）
-#         # plt.figure(figsize=(6, 6))
-#         # plt.imshow(attention_map_resized, cmap='jet')
-#         # plt.colorbar(label='Attention Intensity')
-#         # plt.axis('off')
-#         # heatmap_only_path = os.path.join(output_dir, f"heatmap_only_{os.path.splitext(img_name)[0]}.png")
-#         # plt.savefig(heatmap_only_path, dpi=300, bbox_inches='tight')
-#         # plt.close()
