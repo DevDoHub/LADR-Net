@@ -11,7 +11,7 @@ command = [
     "MODEL.PRETRAIN_CHOICE", "'self'",
     "MODEL.PRETRAIN_PATH", "'./checkpoint_tea.pth'",
     "OUTPUT_DIR", "'./log/market/swin_base'",
-    "SOLVER.BASE_LR", "0.0002",
+    "SOLVER.BASE_LR", "0.0001",
     "SOLVER.OPTIMIZER_NAME", "'SGD'",
     "MODEL.SEMANTIC_WEIGHT", "0.2"
 ]

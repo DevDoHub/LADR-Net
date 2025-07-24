@@ -310,6 +310,7 @@ class build_transformer(nn.Module):
         bio_fusion, clot_fusion = self.dual_attn(image_embeds, text_embeds_final)
 
         feat = self.feat_bn(global_feat)
+        text_feat = self.feat_bn(text_embeds_s)
         bio_f = self.fusion_feat_bn(bio_fusion[:, 0])#TODO
         clot_f = self.fusion_feat_bn(clot_fusion[:, 0])
 
@@ -319,7 +320,9 @@ class build_transformer(nn.Module):
         bio_f = self.fusion_feat_bn(bio_fusion[:, 0])#TODO
         clot_f = self.fusion_feat_bn(clot_fusion[:, 0])
         feat = self.bottleneck(global_feat)
+        text_feat = self.bottleneck(text_feat)
         feat_cls = self.dropout(feat)
+        text_cls = self.dropout(text_feat)
         f_logits = self.classifier(bio_f)
         c_logits = self.classifier(clot_f)
 
@@ -328,8 +331,9 @@ class build_transformer(nn.Module):
                 cls_score = self.classifier(feat_cls, label)
             else:
                 cls_score = self.classifier(feat_cls)
+                text_cls = self.classifier(text_cls)
 
-            return global_feat, bio_f, clot_f, cls_score, f_logits, c_logits, featmaps, text_embeds_s# global feature for triplet loss
+            return global_feat, bio_f, clot_f, cls_score, text_cls, f_logits, c_logits, featmaps, text_embeds_s# global feature for triplet loss
         #    return cls_score, global_feat, featmaps  # global feature for triplet loss  
         else:
             if self.neck_feat == 'after':

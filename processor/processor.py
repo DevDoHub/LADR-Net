@@ -39,19 +39,21 @@ def do_train(cfg,
     model.to(local_rank)
     loss_meter = AverageMeter()
     acc_meter = AverageMeter()
+    acc_text_meter = AverageMeter()
 
     evaluator = R1_mAP_eval(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM, reranking=cfg.TEST.RE_RANKING)
+    evaluator_image = R1_mAP_eval(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM, reranking=cfg.TEST.RE_RANKING)
+    evaluator_text = R1_mAP_eval(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM, reranking=cfg.TEST.RE_RANKING)
     scaler = amp.GradScaler()
-    # train
 
-    #TODO 写了个假的instruction
-    
-    
+
     for epoch in range(1, epochs + 1):
         start_time = time.time()
         loss_meter.reset()
         acc_meter.reset()
         evaluator.reset()
+        evaluator_image.reset()
+        evaluator_text.reset()
         model.train()
         n_iter_overall = 0
         for n_iter, (img, instruction, vid, target_cam, target_view) in enumerate(train_loader):
@@ -66,8 +68,8 @@ def do_train(cfg,
                 # batch = img.size(0)
                 # instruction = ('do_not_change_clothes',) * batch
                 # score, feat, _ = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
-                feat, bio_f, clot_f, score, f_logits, c_logits, _, text_embeds_s = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
-                loss = loss_fn(score, f_logits, c_logits, feat, bio_f, clot_f, target, text_embeds_s, target_cam)
+                feat, bio_f, clot_f, score, text_score, f_logits, c_logits, _, text_embeds_s = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
+                loss = loss_fn(score, text_score, f_logits, c_logits, feat, bio_f, clot_f, target, text_embeds_s, target_cam)
 
             scaler.scale(loss).backward()
 
@@ -79,26 +81,52 @@ def do_train(cfg,
                     param.grad.data *= (1. / cfg.SOLVER.CENTER_LOSS_WEIGHT)
                 scaler.step(optimizer_center)
                 scaler.update()
+
+            # # 计算T2I匹配度（在autocast之外）
+            # if text_embeds_s is not None and feat is not None:
+            #     # 归一化并计算对应文本-图像对的余弦相似度
+            #     text_norm = torch.nn.functional.normalize(text_embeds_s.float(), dim=1, p=2)
+            #     feat_norm = torch.nn.functional.normalize(feat.float(), dim=1, p=2)
+                
+            #     # 计算余弦相似度矩阵
+            #     similarity_matrix = torch.mm(text_norm, feat_norm.t())
+                
+            #     # 对角线元素是对应的文本-图像对的相似度
+            #     diagonal_sim = torch.diag(similarity_matrix)
+                
+            #     # 计算匹配准确率：对角线元素是否为该行/列的最大值
+            #     row_max = similarity_matrix.max(dim=1)[1]  # 每行最大值的索引
+            #     col_max = similarity_matrix.max(dim=0)[1]  # 每列最大值的索引
+                
+            #     # 计算准确率：正确匹配的比例
+            #     batch_size = text_embeds_s.size(0)
+            #     row_acc = (row_max == torch.arange(batch_size, device=text_embeds_s.device)).float().mean()
+            #     col_acc = (col_max == torch.arange(batch_size, device=text_embeds_s.device)).float().mean()
+            #     acc = (row_acc + col_acc) / 2
+            # else:
+                # 如果没有文本嵌入，保持原有的分类准确率计算
             if isinstance(score, list):
                 acc = (score[0].max(1)[1] == target).float().mean()
             else:
                 acc = (score.max(1)[1] == target).float().mean()
+                acc_text = (text_score.max(1)[1] == target).float().mean()
 
             loss_meter.update(loss.item(), img.shape[0])
             acc_meter.update(acc, 1)
+            acc_text_meter.update(acc_text, 1)
 
             torch.cuda.synchronize()
             if cfg.MODEL.DIST_TRAIN:
                 if dist.get_rank() == 0:
                     if (n_iter + 1) % log_period == 0:
                         base_lr = scheduler._get_lr(epoch)[0] if cfg.SOLVER.WARMUP_METHOD == 'cosine' else scheduler.get_lr()[0]
-                        logger.info("Epoch[{}] Iter[{}/{}] Loss: {:.3f}, Acc: {:.3f}, Base Lr: {:.2e}"
-                                    .format(epoch, (n_iter + 1), len(train_loader), loss_meter.avg, acc_meter.avg, base_lr))
+                        logger.info("Epoch[{}] Iter[{}/{}] Loss: {:.3f}, Acc: {:.3f}, Text Acc: {:.3f}, Base Lr: {:.2e}"
+                                    .format(epoch, (n_iter + 1), len(train_loader), loss_meter.avg, acc_meter.avg, acc_text_meter.avg, base_lr))
             else:
                 if (n_iter + 1) % log_period == 0:
                     base_lr = scheduler._get_lr(epoch)[0] if cfg.SOLVER.WARMUP_METHOD == 'cosine' else scheduler.get_lr()[0]
-                    logger.info("Epoch[{}] Iter[{}/{}] Loss: {:.3f}, Acc: {:.3f}, Base Lr: {:.2e}"
-                                .format(epoch, (n_iter + 1), len(train_loader), loss_meter.avg, acc_meter.avg, base_lr))
+                    logger.info("Epoch[{}] Iter[{}/{}] Loss: {:.3f}, Acc: {:.3f}, Text Acc: {:.3f}, Base Lr: {:.2e}"
+                                .format(epoch, (n_iter + 1), len(train_loader), loss_meter.avg, acc_meter.avg, acc_text_meter.avg, base_lr))
 
         end_time = time.time()
         time_per_batch = (end_time - start_time) / (n_iter_overall + 1)
@@ -121,7 +149,7 @@ def do_train(cfg,
                 torch.save(model.state_dict(),
                            os.path.join(cfg.OUTPUT_DIR, cfg.MODEL.NAME + '_{}.pth'.format(epoch)))
 
-        if epoch % eval_period == 0:
+        if epoch % eval_period == 0 or epoch == 1:
             if cfg.MODEL.DIST_TRAIN:
                 if dist.get_rank() == 0:
                     model.eval()
@@ -149,13 +177,22 @@ def do_train(cfg,
                         #instruction = ('do_not_change_clothes',) * batch
                         # feat, _ = model(img, cam_label=camids, view_label=target_view)
                         feat, bio_f, clot_f, f_logits, c_logits, _, text_embeds_s = model(img, instruction, cam_label=camids, view_label=target_view )
-                        bio_clot_feat = torch.cat([bio_f, clot_f], dim=1)
+                        bio_clot_feat = torch.cat([feat, text_embeds_s], dim=1)
                         evaluator.update((bio_clot_feat, vid, camid))
+                        evaluator_image.update((feat, vid, camid))
+                        evaluator_text.update((text_embeds_s, vid, camid))
                 cmc, mAP, _, _, _, _, _ = evaluator.compute()
+                cmc_image, mAP_image, _, _, _, _, _ = evaluator_image.compute()
+                cmc_text, mAP_text, _, _, _, _, _ = evaluator_text.compute()
+
                 logger.info("Validation Results - Epoch: {}".format(epoch))
                 logger.info("mAP: {:.1%}".format(mAP))
+                logger.info("Image mAP: {:.1%}".format(mAP_image))
+                logger.info("Text mAP: {:.1%}".format(mAP_text))
                 for r in [1, 5, 10]:
                     logger.info("CMC curve, Rank-{:<3}:{:.1%}".format(r, cmc[r - 1]))
+                    logger.info("Image CMC curve, Rank-{:<3}:{:.1%}".format(r, cmc_image[r - 1]))
+                    logger.info("Text CMC curve, Rank-{:<3}:{:.1%}".format(r, cmc_text[r - 1]))
                 torch.cuda.empty_cache()
 
 def do_inference(cfg,
@@ -167,7 +204,8 @@ def do_inference(cfg,
     logger.info("Enter inferencing")
 
     evaluator = R1_mAP_eval(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM, reranking=cfg.TEST.RE_RANKING)
-
+    evaluator_image = R1_mAP_eval(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM, reranking=cfg.TEST.RE_RANKING)
+    evaluator_text = R1_mAP_eval(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM, reranking=cfg.TEST.RE_RANKING)
     evaluator.reset()
 
     if device:
