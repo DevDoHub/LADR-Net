@@ -1,40 +1,27 @@
-
-
-# 忽略所有的 .log 文件
+# 忽略 Data, logs, models
+data/
+logs/
 *.log
-
-# 忽略 node_modules 目录
-node_modules/
-
-# 忽略 .env 文件
-.env
-
-# 忽略 dist 目录
-dist/
-
-# 忽略特定文件
-
-# 忽略特定目录
-__pycache__/
-
-# 忽略当前项目根目录下的 data 目录
-/data/
 *.bin
 *.pth
-
-logs/
-
 *.pth.tar
-
 *.pkl
 
-/tests/
 
+# 忽略 Byte-compiled / optimized / DLL files
 __pycache__/
-/data/
-*.pth
-*.pyc
+*.py[cod]
 *.pyo
-/bert-base-uncased1/
-/bert-base-uncased2/
-/bert-base-uncased/
+*.pyc
+
+# 忽略 bert-base-uncased directories
+bert-base-uncased1/
+
+# 忽略 压缩包
+*.zip
+*.tar.gz
+*.tar.bz2
+*.rar
+*.7z
+
+
