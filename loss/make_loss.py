@@ -128,13 +128,13 @@ def make_loss(cfg, num_classes):    # modified by gu
                     # )
                     # LOSS += alignment_loss_weight * alignment_loss
 
-                    if isinstance(feat, list):
-                        TRI_LOSS = [triplet_loss(feats, target)[0] for feats in feat[1:]]
-                        TRI_LOSS = sum(TRI_LOSS) / len(TRI_LOSS)
-                        TRI_LOSS = 0.5 * TRI_LOSS + 0.5 * triplet(feat[0], target)[0]
-                    else:
-                        TRI_LOSS = triplet_loss(feat, target, text_embeds_s)[0]
-                        LOSS += 5 * TRI_LOSS
+                    # if isinstance(feat, list):
+                    #     TRI_LOSS = [triplet_loss(feats, target)[0] for feats in feat[1:]]
+                    #     TRI_LOSS = sum(TRI_LOSS) / len(TRI_LOSS)
+                    #     TRI_LOSS = 0.5 * TRI_LOSS + 0.5 * triplet(feat[0], target)[0]
+                    # else:
+                    #     TRI_LOSS = triplet_loss(feat, target, text_embeds_s)[0]
+                    #     LOSS += 5 * TRI_LOSS
 
                 # if 'bio' in cfg.MODEL.FUSION_BRANCH :
                 #     if isinstance(f_logits, list):
