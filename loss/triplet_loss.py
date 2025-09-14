@@ -145,7 +145,7 @@ def _batch_hard(mat_distance, mat_similarity, indice=False):
     hard_p1 = sorted_mat_distance[:, 0]
     hard_p_indice1 = positive_indices[:, 0]
     
-    hard_p2 = sorted_mat_distance[:, 1]
+    # hard_p2 = sorted_mat_distance[:, 1]
     hard_p_indice2 = positive_indices[:, 1]
     
     sorted_mat_distance, negative_indices = torch.sort(mat_distance + (9999999.) * (mat_similarity), dim=1, descending=False)
@@ -153,8 +153,8 @@ def _batch_hard(mat_distance, mat_similarity, indice=False):
     hard_n_indice = negative_indices[:, 0]
     # import pdb;pdb.set_trace()
     if (indice):
-        return hard_p1, hard_p2, hard_n, hard_p_indice1, hard_p_indice2, hard_n_indice
-    return hard_p1, hard_p2, hard_n
+        return hard_p1,  hard_n, hard_p_indice1, hard_p_indice2, hard_n_indice
+    return hard_p1,  hard_n
 class TripletLoss(nn.Module):
 
     def __init__(self, margin, normalize_feature=False):
@@ -174,7 +174,7 @@ class TripletLoss(nn.Module):
         N = mat_dist.size(0)
         mat_sim = label.expand(N, N).eq(label.expand(N, N).t()).float()
         
-        dist_ap1, dist_ap2, dist_an, dist_ap1_indice, dist_ap2_indice, dist_an_indice = _batch_hard(mat_dist, mat_sim, indice=True)
+        dist_ap1, dist_an, dist_ap1_indice, dist_ap2_indice, dist_an_indice = _batch_hard(mat_dist, mat_sim, indice=True)
         assert dist_an.size(0) == dist_ap1.size(0)
         
         alpha1 = torch.rand(dist_ap1_indice.shape).to(dist_ap1_indice.device)
@@ -194,7 +194,7 @@ class TripletLoss(nn.Module):
         y11[alpha1 < alpha2] = -1
         y11_m[alpha1 == alpha2] = 0
         
-        loss11 = self.margin_loss(dist_ap2*y11_m, dist_ap1*y11_m + self.margin*(alpha1 - alpha2 - y11), y11)
+        loss11 = self.margin_loss(y11_m, dist_ap1*y11_m + self.margin*(alpha1 - alpha2 - y11), y11)
         
         y13 = torch.ones_like(dist_ap1)
         
@@ -209,5 +209,5 @@ class TripletLoss(nn.Module):
         loss23 = self.margin_loss(dist_an, dist_ap2, y23)
         loss = 0.1 * loss11 + loss13
         prec = (dist_an.data > dist_ap1.data).sum() * 1. / y11.size(0)
-        return loss, prec
+        return loss13, prec
 

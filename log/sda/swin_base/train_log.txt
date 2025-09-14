@@ -1,14 +1,15 @@
-2024-12-04 09:48:49 transreid INFO: Saving model in the path :./log/real2/swin_base
-2024-12-04 09:48:49 transreid INFO: Loaded configuration file configs/real2/swin_base.yml
-2024-12-04 09:48:49 transreid INFO: Running with config:
+2025-09-12 00:03:40 transreid INFO: Saving model in the path :./log/sda/swin_base
+2025-09-12 00:03:40 transreid INFO: Loaded configuration file configs/sda/swin_base.yml
+2025-09-12 00:03:40 transreid INFO: Running with config:
 DATALOADER:
-  NUM_INSTANCE: 4
-  NUM_WORKERS: 8
+  NUM_INSTANCE: 1
+  NUM_WORKERS: 1
   REMOVE_TAIL: 0
   SAMPLER: softmax_triplet
 DATASETS:
-  NAMES: real2
-  ROOT_DIR: ./data
+  NAMES: sda
+  ROOT_DIR: /hy-tmp/
+  ROOT_TEST_DIR: ./data/cuhkpedes/reid_raw.json
   ROOT_TRAIN_DIR: ../data
   ROOT_VAL_DIR: ../data
 INPUT:
@@ -19,13 +20,13 @@ INPUT:
   RE_PROB: 0.5
   SIZE_TEST: [384, 128]
   SIZE_TRAIN: [384, 128]
-JSON_DIR: ./data/real2/datalist/runner_real2_v1_gpt.json
+JSON_DIR: 
 MODEL:
   ATT_DROP_RATE: 0.0
-  BIO_ID_LOSS_WEIGHT: 0.3
-  BIO_TRIPLET_LOSS_WEIGHT: 0.3
-  CLOT_ID_LOSS_WEIGHT: 0.3
-  CLOT_TRIPLET_LOSS_WEIGHT: 0.3
+  BIO_ID_LOSS_WEIGHT: 0.5
+  BIO_TRIPLET_LOSS_WEIGHT: 0.5
+  CLOT_ID_LOSS_WEIGHT: 0.5
+  CLOT_TRIPLET_LOSS_WEIGHT: 0.65
   COS_LAYER: False
   DEVICE: cuda
   DEVICE_ID: 0
@@ -35,7 +36,7 @@ MODEL:
   DROP_OUT: 0.0
   DROP_PATH: 0.1
   FEAT_DIM: 512
-  FUSION_BRANCH: 
+  FUSION_BRANCH: bio+clot
   GEM_POOLING: False
   ID_LOSS_TYPE: softmax
   ID_LOSS_WEIGHT: 1.0
@@ -60,24 +61,25 @@ MODEL:
   SIE_VIEW: False
   STEM_CONV: False
   STRIDE_SIZE: [16, 16]
+  TEXT_LENGTH: 56
   TRANSFORMER_TYPE: swin_base_patch4_window7_224
   TRIPLET_LOSS_WEIGHT: 1.0
-OUTPUT_DIR: ./log/real2/swin_base
+OUTPUT_DIR: ./log/sda/swin_base
 SOLVER:
   BASE_LR: 0.0002
   BIAS_LR_FACTOR: 2
   CENTER_LOSS_WEIGHT: 0.0005
   CENTER_LR: 0.5
-  CHECKPOINT_PERIOD: 120
+  CHECKPOINT_PERIOD: 5
   COSINE_MARGIN: 0.5
   COSINE_SCALE: 30
-  EVAL_PERIOD: 10
+  EVAL_PERIOD: 5
   GAMMA: 0.1
-  IMS_PER_BATCH: 32
+  IMS_PER_BATCH: 1
   LARGE_FC_LR: False
   LOG_PERIOD: 20
   MARGIN: 0.3
-  MAX_EPOCHS: 120
+  MAX_EPOCHS: 100
   MOMENTUM: 0.9
   OPTIMIZER_NAME: SGD
   SEED: 1234
@@ -92,7 +94,17 @@ TEST:
   DIST_MAT: dist_mat.npy
   EVAL: True
   FEAT_NORM: yes
-  IMS_PER_BATCH: 64
+  IMS_PER_BATCH: 1
   NECK_FEAT: before
   RE_RANKING: False
   WEIGHT: 
+2025-09-12 00:04:06 transreid.check INFO: Dataset statistics:
+2025-09-12 00:04:06 transreid.check INFO:   ----------------------------------------------------------
+2025-09-12 00:04:06 transreid.check INFO:   subset   | # ids | # images | # caption ids | # caption 
+2025-09-12 00:04:06 transreid.check INFO:   ----------------------------------------------------------
+2025-09-12 00:04:06 transreid.check INFO:   train    | 1217750 |  1217750 |   1217750 |   1217750
+2025-09-12 00:04:06 transreid.check INFO:   test     |  1000 |     3074 |      1000 |      6156
+2025-09-12 00:04:06 transreid.check INFO:   val      |  1000 |     3078 |      1000 |      6158
+2025-09-12 00:04:06 transreid.check INFO:   ----------------------------------------------------------
+2025-09-12 00:05:48 transreid INFO: ===========using cosine learning rate=======
+2025-09-12 00:05:48 transreid.train INFO: start training

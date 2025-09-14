@@ -20,23 +20,23 @@ INPUT:
   PIXEL_STD: [0.5, 0.5, 0.5]
 
 DATASETS:
-  NAMES: ('market1501')
+  NAMES: ('cuhkpedes')
   ROOT_DIR: ('./data')
 
 DATALOADER:
   SAMPLER: 'softmax_triplet'
   NUM_INSTANCE: 4
-  NUM_WORKERS: 8
+  NUM_WORKERS: 1
 
 SOLVER:
   OPTIMIZER_NAME: 'SGD'
-  MAX_EPOCHS: 120
+  MAX_EPOCHS: 160
   BASE_LR: 0.0008
   WARMUP_EPOCHS: 20
-  IMS_PER_BATCH: 32
+  IMS_PER_BATCH: 50
   WARMUP_METHOD: 'cosine'
   LARGE_FC_LR: False
-  CHECKPOINT_PERIOD: 120
+  CHECKPOINT_PERIOD: 160
   LOG_PERIOD: 20
   EVAL_PERIOD: 10
   WEIGHT_DECAY:  1e-4
@@ -51,5 +51,4 @@ TEST:
   NECK_FEAT: 'before'
   FEAT_NORM: 'yes'
 
-OUTPUT_DIR: './log/market1501/swin_base'
-JSON_DIR: './data/market1501/market1501_gpt_v1.json'
+OUTPUT_DIR: './log/cuhkpedes/swin_base'

@@ -9,9 +9,12 @@ from .backbones.swin_transformer import swin_base_patch4_window7_224, swin_small
 from loss.metric_learning import Arcface, Cosface, AMSoftmax, CircleLoss
 from .backbones.resnet_ibn_a import resnet50_ibn_a,resnet101_ibn_a
 
-from model.backbones.tokenization_bert import BertTokenizer
+# from model.backbones.tokenization_bert import BertTokenizer
 from model.backbones.xbert import BertConfig, BertForMaskedLM
-from model.backbones.vit_pytorch import Block
+from transformers import BertModel
+from model.backbones.crossattention import CrossBlock
+from model.backbones.clip_model import Transformer, QuickGELU, LayerNorm, build_CLIP_from_openai_pretrained, convert_weights
+import numpy as np
 
 def shuffle_unit(features, shift, group, begin=1):
 
@@ -81,13 +84,13 @@ class Backbone(nn.Module):
         self.dropout_rate = cfg.MODEL.DROPOUT_RATE
 
         if model_name == 'resnet50':
-            self.in_planes = 2048
+            self.in_planes = 1024
             self.base = ResNet(last_stride=last_stride,
                                block=Bottleneck,
                                layers=[3, 4, 6, 3])
             print('using resnet50 as a backbone')
         elif model_name == 'resnet50_ibn_a':
-            self.in_planes = 2048
+            self.in_planes = 1024
             self.base = resnet50_ibn_a(last_stride)
             print('using resnet50_ibn_a as a backbone')
         else:
@@ -105,10 +108,10 @@ class Backbone(nn.Module):
             self.fcneck.apply(weights_init_xavier)
             self.in_planes = cfg.MODEL.FEAT_DIM
 
-        self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
+        self.classifier = nn.Linear(1024, self.num_classes, bias=False)
         self.classifier.apply(weights_init_classifier)
 
-        self.bottleneck = nn.BatchNorm1d(self.in_planes)
+        self.bottleneck = nn.BatchNorm1d(1024)
         self.bottleneck.bias.requires_grad_(False)
         self.bottleneck.apply(weights_init_kaiming)
 
@@ -122,7 +125,7 @@ class Backbone(nn.Module):
     def forward(self, x, label=None, **kwargs):  # label is unused if self.cos_layer == 'no'
         x = self.base(x)
         global_feat = nn.functional.avg_pool2d(x, x.shape[2:4])
-        global_feat = global_feat.view(global_feat.shape[0], -1)  # flatten to (bs, 2048)
+        global_feat = global_feat.view(global_feat.shape[0], -1)  # flatten to (bs, 1024)
         if self.reduce_feat_dim:
             global_feat = self.fcneck(global_feat)
 
@@ -195,28 +198,27 @@ class build_transformer(nn.Module):
 
         convert_weights = True if pretrain_choice == 'imagenet' else False
 
-        
-        # save_path = '/root/SOLIDER-REID-PRO/bert-base-uncased1'
-        # self.tokenizer = BertTokenizer.from_pretrained(save_path, from_tf=True)  # 使用本地路径
-        # bert_config = BertConfig.from_json_file('./config_bert.json')
-        # self.text_encoder = BertForMaskedLM.from_pretrained(save_path, config=bert_config)  # 使用本地路径
-
-        save_path = '/root/SOLIDER-REID-PRO/bert-base-uncased1'
-        self.tokenizer = BertTokenizer.from_pretrained('google-bert/bert-base-uncased', cache_dir=save_path)#TODO
-        bert_config = BertConfig.from_json_file('./config_bert.json')
-        self.text_encoder = BertForMaskedLM.from_pretrained('google-bert/bert-base-uncased', config=bert_config, cache_dir=save_path)
-
-        # self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')#TODO
-        # bert_config = BertConfig.from_json_file('./config_bert.json')
-        # self.text_encoder = BertForMaskedLM.from_pretrained('bert-base-uncased', config=bert_config)
-
-        self.conv_layer = nn.Conv1d(in_channels=768, out_channels=1024, kernel_size=1)
-
-        self.TransReid = nn.Sequential(
-            Block(dim=1024, num_heads=16, qkv_bias=True),
-            Block(dim=1024, num_heads=16, qkv_bias=True),
-            Block(dim=1024, num_heads=16, qkv_bias=True)
+        # self.encoder, base_cfg = build_CLIP_from_openai_pretrained('ViT-B/16', (384, 128), 16)
+        bert_config = BertConfig.from_json_file('./config/config_bert.json')
+        # self.text_embed_dim = 512
+        self.text_encoder = BertForMaskedLM.from_pretrained(
+        "./bert-base-uncased1/models--google-bert--bert-base-uncased/snapshots/86b5e0934494bd15c9632b12f734a8a67f723594", 
+        local_files_only=True, config=bert_config
         )
+        self.text_embed_dim = 768  # bert-large 的隐藏层维度是1024
+
+    
+        # # 替换原有的 nn.Sequential
+        # self.fusion_layers_T2I = nn.ModuleList([
+        #     CrossBlock(dim=self.text_embed_dim, num_heads=16, qkv_bias=True),
+        #     # CrossBlock(dim=1024, num_heads=16, qkv_bias=True),
+        #     # CrossBlock(dim=1024, num_heads=16, qkv_bias=True)
+        # ])
+        # self.fusion_layers_I2T = nn.ModuleList([
+        #     CrossBlock(dim=1024, num_heads=16, qkv_bias=True),
+        #     CrossBlock(dim=1024, num_heads=16, qkv_bias=True),
+        #     CrossBlock(dim=1024, num_heads=16, qkv_bias=True)
+        # ])
 
         self.base = factory[cfg.MODEL.TRANSFORMER_TYPE](img_size=cfg.INPUT.SIZE_TRAIN, drop_path_rate=cfg.MODEL.DROP_PATH, drop_rate= cfg.MODEL.DROP_OUT,attn_drop_rate=cfg.MODEL.ATT_DROP_RATE, pretrained=model_path, convert_weights=convert_weights, semantic_weight=semantic_weight)
         if model_path != '':
@@ -246,98 +248,203 @@ class build_transformer(nn.Module):
                 self.fcneck = nn.Linear(self.in_planes, self.feat_dim, bias=False)
                 self.fcneck.apply(weights_init_xavier)
                 self.in_planes = cfg.MODEL.FEAT_DIM
-            self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
+            self.classifier = nn.Linear(768, self.num_classes, bias=False)
             self.classifier.apply(weights_init_classifier)
 
-        self.bottleneck = nn.BatchNorm1d(self.in_planes)
+        self.bottleneck = nn.BatchNorm1d(768)
         self.bottleneck.bias.requires_grad_(False)
         self.bottleneck.apply(weights_init_kaiming)
 
         self.dropout = nn.Dropout(self.dropout_rate)
-        fusion_layers = []
 
-        self.num_features = 1024
-        # for i in range(3):#TODO 3
-            # if net_config.attn_type=='fc':
-            # fusion_layers.append(nn.Linear(self.num_features, self.num_features))
-            # else:
-        fusion_layers.append(self.TransReid)
-        self.fusion = nn.Sequential(*fusion_layers)
+        self.num_features = 768
+
         self.fusion_feat_bn = nn.BatchNorm1d(self.num_features)
         self.fusion_feat_bn.bias.requires_grad_(False)
         init.constant_(self.fusion_feat_bn.weight, 1)
         init.constant_(self.fusion_feat_bn.bias, 0)
 
-        self.feat_bn = nn.BatchNorm1d(self.num_features)
+        self.feat_bn = nn.BatchNorm1d(768)
         self.feat_bn.bias.requires_grad_(False)
         init.constant_(self.feat_bn.weight, 1)
         init.constant_(self.feat_bn.bias, 0)
-        #if pretrain_choice == 'self':
-        #    self.load_param(model_path)
-    def dual_attn(self, bio_feats, clot_feats, project_feats=None, project_feats_down=None):
-        bio_class = bio_feats[:, 0:1]
-        clot_class = clot_feats[:, 0:1]
-        
-        bio_fusion = torch.cat([bio_class, clot_feats[:, 1:]], dim=1)
-        clot_fusion = torch.cat([clot_class, bio_feats[:, 1:]], dim=1)
 
-        bio_fusion = self.fusion(bio_fusion)
-        clot_fusion = self.fusion(clot_fusion)
-        return bio_fusion, clot_fusion
+        self.avgpool_image = nn.AdaptiveAvgPool1d(3)
+        self.avgpool_text = nn.AdaptiveAvgPool1d(3)
+        self.vision_proj = build_itc_mlp(3072, 1024, 0.5)
+        self.text_proj = build_itc_mlp(3072, 1024, 0.5)
+
+        self.image_projection = nn.Parameter(torch.empty(1024, 768))
+        nn.init.normal_(self.image_projection, std=0.01)  # 初始化投影矩阵
+
+        
+        self.temp = nn.Parameter(torch.ones([]) * 0.07)
+        self.itm_head = build_itm_mlp(input_dim=self.text_embed_dim, output_dim=2)
+
+    def get_image_feat(self, image_embeds):
+
+        x = self.avgpool_image(image_embeds.transpose(1, 2))
+        x = x.transpose(1, 2)
+        x = torch.cat([x[:, 0, :],   x[:, 1, :], x[:, 2, :]], dim=1)
+        image_feat = self.vision_proj(x)
+
+        return image_feat
+
+
+    def get_text_feat(self, text_embeds):
+
+        x = self.avgpool_text(text_embeds[:, 1:, ].transpose(1, 2))  # B C 3
+        x = x.transpose(1, 2)  # B 3 C
+        x = torch.cat([x[:, 0, :], x[:, 0, :], x[:, 1, :], x[:, 1, :], x[:, 2, :], x[:, 2, :]], dim=1)
+        text_feat = self.text_proj(x)
+
+        return text_feat
+    
+
+
+    def dual_attn(self, image_embeds, image_atts, text_embeds, text_atts):
+        encoder = self.text_encoder.bert
+        return encoder(encoder_embeds=text_embeds,
+                attention_mask=text_atts,
+                encoder_hidden_states=image_embeds,
+                encoder_attention_mask=image_atts,
+                return_dict=True,
+                mode='fusion',
+                ).last_hidden_state
+    
+    def get_matching_loss(self, image_embeds, image_atts, image_feat, text_embeds, text_atts, text_feat, idx):
+        """
+        Matching Loss with hard negatives
+        """
+        bs = image_embeds.size(0)
+
+        image_feat = F.normalize(image_feat, dim=-1)
+        text_feat = F.normalize(text_feat, dim=-1)
+
+
+        with torch.no_grad():
+            sim_i2t = image_feat @ text_feat.t() / self.temp
+            sim_t2i = text_feat @ image_feat.t() / self.temp
+            weights_i2t = F.softmax(sim_i2t, dim=1) + 1e-5
+            weights_t2i = F.softmax(sim_t2i, dim=1) + 1e-5
+
+            idx = idx.view(-1, 1)
+            assert idx.size(0) == bs
+            mask = torch.eq(idx, idx.t())
+            weights_i2t.masked_fill_(mask, 0)
+            weights_t2i.masked_fill_(mask, 0)
+
+        image_embeds_neg = []
+        image_atts_neg = []
+        for b in range(bs):
+            neg_idx = torch.multinomial(weights_t2i[b], 1).item()
+            image_embeds_neg.append(image_embeds[neg_idx])
+            image_atts_neg.append(image_atts[neg_idx])
+        image_embeds_neg = torch.stack(image_embeds_neg, dim=0)
+        image_atts_neg = torch.stack(image_atts_neg, dim=0)
+
+        text_embeds_neg = []
+        text_atts_neg = []
+        for b in range(bs):
+            neg_idx = torch.multinomial(weights_i2t[b], 1).item()
+            text_embeds_neg.append(text_embeds[neg_idx])
+            text_atts_neg.append(text_atts[neg_idx])
+        text_embeds_neg = torch.stack(text_embeds_neg, dim=0)
+        text_atts_neg = torch.stack(text_atts_neg, dim=0)
+
+        text_embeds_all = torch.cat([text_embeds, text_embeds_neg], dim=0)
+        text_atts_all = torch.cat([text_atts, text_atts_neg], dim=0)
+        image_embeds_all = torch.cat([image_embeds_neg, image_embeds], dim=0)
+        image_atts_all = torch.cat([image_atts_neg, image_atts], dim=0)
+
+        cross_pos = self.dual_attn(image_embeds, image_atts, text_embeds,
+                                          text_atts)[:, 0, :]
+        cross_neg = self.dual_attn(image_embeds_all, image_atts_all, text_embeds_all,
+                                          text_atts_all)[:, 0, :]
+
+
+        output = self.itm_head(torch.cat([cross_pos, cross_neg], dim=0))
+        itm_labels = torch.cat([torch.ones(bs, dtype=torch.long),
+                                torch.zeros(2 * bs, dtype=torch.long)], dim=0).to(image_embeds.device)
+        itm_loss = F.cross_entropy(output, itm_labels)
+
+        return itm_loss
+
+    def get_contrastive_loss(self, image_feat, text_feat, idx):
+
+        image_feat = F.normalize(image_feat, dim=-1)
+        text_feat = F.normalize(text_feat, dim=-1)
+
+        image_feat_all = image_feat
+        text_feat_all = text_feat
+     
+        logits = image_feat_all @ text_feat_all.t() / self.temp
+
+        idx = idx.view(-1, 1)
+        assert idx.size(0) == image_feat.size(0)
+        idx_all = idx
+        pos_idx = torch.eq(idx_all, idx_all.t()).float()
+        labels = pos_idx / pos_idx.sum(1, keepdim=True)
+
+        loss_i2t = -torch.sum(F.log_softmax(logits, dim=1) * labels, dim=1).mean()
+        loss_t2i = -torch.sum(F.log_softmax(logits.t(), dim=1) * labels, dim=1).mean()
+
+        return (loss_i2t + loss_t2i) / 2
 
     def forward(self, x, instruction, label=None, cam_label= None, view_label=None):
-        instruction_text = self.tokenizer(instruction, truncation=True, padding='max_length', max_length=35, return_tensors="pt").to('cuda')
-        # extract text features
-        instruction_text = instruction_text.to('cuda')
-        text_output = self.text_encoder.bert(instruction_text.input_ids, attention_mask=instruction_text.attention_mask, return_dict=True, mode='text')
-        text_embeds = text_output.last_hidden_state
-        text_embeds = text_embeds.to('cuda')
-        self.text_proj = nn.Linear(768, 256).to('cuda')
-        text_feat = F.normalize(self.text_proj(text_embeds[:, 0, :]), dim=-1)
 
-        text_embeds_reshaped = text_embeds.permute(0, 2, 1)
-        text_embeds_conv = self.conv_layer (text_embeds_reshaped)  # 变为 [64, 1024, 70]
-        text_embeds_final = text_embeds_conv.permute(0, 2, 1)
-        text_embeds_s = text_embeds_final[:,0]
-        
-        
-        global_feat, featmaps = self.base(x)#global_feat全局特征 featmaps[-1]最后阶段输出的([64, 1024, 12, 4])
+        text_outputs = self.text_encoder.bert(
+            input_ids=instruction['input_ids'].to('cuda'),
+            token_type_ids=instruction['token_type_ids'].to('cuda'),
+            attention_mask=instruction['attention_mask'].to('cuda'),
+            return_dict=True, mode='text'
+        )
+        text_embeds = text_outputs.last_hidden_state 
+        # text_embeds = text_embeds @ self.text_projection  # 将 (batch, seq_len, 768) 转为 (batch, seq_len, 1024)
+        text_feat = text_embeds[:, 0, :]
+
+        global_feat, featmaps = self.base(x)
+        # 在 forward 或 __init__ 中添加
+        # total_params = count_parameters(self.text_encoder)
+        # print(f"Base model parameters: {total_params:,}")#global_feat全局特征 featmaps[-1]最后阶段输出的([64, 1024, 12, 4])
         batch = featmaps[-1].size(0)
         local_feat_all = featmaps[-1].view(batch, 1024, 12 * 4).permute(0, 2, 1)
-
         image_embeds = torch.cat((global_feat.unsqueeze(1), local_feat_all), dim=1)#TODO
+        image_embeds = image_embeds @ self.image_projection
+        image_atts = torch.ones(image_embeds.size()[:-1], dtype=torch.long).to('cuda')
+        image_feat = image_embeds[:, 0, :]
 
-        bio_fusion, clot_fusion = self.dual_attn(image_embeds, text_embeds_final)
+ 
+        # image_feat, text_feat = self.get_image_feat(image_embeds), self.get_text_feat(text_embeds)
 
-        feat = self.feat_bn(global_feat)
-        bio_f = self.fusion_feat_bn(bio_fusion[:, 0])#TODO
-        clot_f = self.fusion_feat_bn(clot_fusion[:, 0])
+        loss_itm = self.get_matching_loss(image_embeds, image_atts, image_feat, text_embeds, text_atts=instruction['attention_mask'].to('cuda'), text_feat=text_feat, idx=label)
+
+        loss_itc = self.get_contrastive_loss(image_feat, text_feat, label)
+
 
         if self.reduce_feat_dim:
-            logits = self.fcneck(global_feat)
+            logits = self.fcneck(local_feat_all)
 
-        bio_f = self.fusion_feat_bn(bio_fusion[:, 0])#TODO
-        clot_f = self.fusion_feat_bn(clot_fusion[:, 0])
-        feat = self.bottleneck(global_feat)
-        feat_cls = self.dropout(feat)
-        f_logits = self.classifier(bio_f)
-        c_logits = self.classifier(clot_f)
+        # feat = self.bottleneck(image_feat)
+        # text_feat = self.feat_bn(text_feat)
+        # feat_cls = self.dropout(feat)
+        # text_cls = self.dropout(text_feat)
 
         if self.training:
             if self.ID_LOSS_TYPE in ('arcface', 'cosface', 'amsoftmax', 'circle'):
-                cls_score = self.classifier(feat_cls, label)
+                cls_score = self.classifier(image_feat, label)
+                text_score = self.classifier(text_feat, label)
             else:
-                cls_score = self.classifier(feat_cls)
-
-            return global_feat, bio_f, clot_f, cls_score, f_logits, c_logits, featmaps, text_embeds_s# global feature for triplet loss
-        #    return cls_score, global_feat, featmaps  # global feature for triplet loss  
+                cls_score = self.classifier(image_feat)
+                text_score = self.classifier(text_feat)
+            return image_feat, image_feat, image_feat, cls_score, cls_score, cls_score, local_feat_all, text_feat, text_score, loss_itm, loss_itc# global feature for triplet loss  
         else:
             if self.neck_feat == 'after':
                 # print("Test with feature after BN")
                 return feat, featmaps
             else:
                 # print("Test with feature before BN")
-                return global_feat, bio_f, clot_f, f_logits, c_logits, featmaps, text_embeds_s
+                return image_feat, image_feat, image_feat, cls_score, cls_score, local_feat_all, text_feat
 
     def load_param(self, trained_path):
         param_dict = torch.load(trained_path, map_location = 'cpu')
@@ -536,3 +643,22 @@ def make_model(cfg, num_class, camera_num, view_num, semantic_weight):
         model = Backbone(num_class, cfg)
         print('===========building ResNet===========')
     return model
+def build_itc_mlp(input_dim, output_dim, dropout_p=0):
+    mlp = nn.Sequential(
+        nn.BatchNorm1d(input_dim),
+        nn.Dropout(p=dropout_p),
+        nn.Linear(input_dim, output_dim),
+    )
+    init.normal_(mlp[2].weight.data, std=0.00001)
+    init.constant_(mlp[2].bias.data, 0.0)
+    return mlp
+
+def build_itm_mlp(input_dim, output_dim):
+    return nn.Sequential(
+        nn.Linear(input_dim, input_dim * 2),
+        nn.LayerNorm(input_dim * 2),
+        nn.GELU(),
+        nn.Linear(input_dim * 2, output_dim)
+    )
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)

@@ -66,11 +66,11 @@ if __name__ == '__main__':
 
 
     os.environ['CUDA_VISIBLE_DEVICES'] = cfg.MODEL.DEVICE_ID
-    train_loader, train_loader_normal, val_loader, num_query, num_classes, camera_num, view_num = make_dataloader(cfg)
+    train_loader, train_loader_normal,  val_img_loader, val_txt_loader , num_test, num_classes = make_dataloader(cfg)
 
 
 
-    model = make_model(cfg, num_class=num_classes, camera_num=camera_num, view_num = view_num, semantic_weight = cfg.MODEL.SEMANTIC_WEIGHT)
+    model = make_model(cfg, num_class=num_classes, camera_num=0, view_num = 0, semantic_weight = cfg.MODEL.SEMANTIC_WEIGHT)
     with open("model_parameters.txt", "w") as f:
     # 使用 named_parameters() 获取模型的参数名称和参数本身
         for name, param in model.named_parameters():
@@ -93,10 +93,11 @@ if __name__ == '__main__':
         model,
         center_criterion,
         train_loader,
-        val_loader,
+        val_img_loader, 
+        val_txt_loader,
         optimizer,
         optimizer_center,
         scheduler,
         loss_func,
-        num_query, args.local_rank
+        num_test, args.local_rank
     )

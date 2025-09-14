@@ -1,134 +1,121 @@
+from prettytable import PrettyTable
 import torch
 import numpy as np
 import os
-from utils.reranking import re_ranking
+import torch.nn.functional as F
+import logging
+import torch.nn as nn
+from utils.eval import evaluation_itm
+
+def rank(similarity, q_pids, g_pids, max_rank=10, get_mAP=True):
+    if get_mAP:
+        score_matrix_t2i = torch.tensor(similarity)
+        indices = torch.argsort(score_matrix_t2i, dim=1, descending=True)
+    else:
+        # acclerate sort with topk
+        _, indices = torch.topk(
+            similarity, k=max_rank, dim=1, largest=True, sorted=True
+        )  # q * topk
+    pred_labels = g_pids[indices.cpu()]  # q * k
+    matches = pred_labels.eq(q_pids.view(-1, 1))  # q * k
+
+    all_cmc = matches[:, :max_rank].cumsum(1) # cumulative sum
+    all_cmc[all_cmc > 1] = 1
+    all_cmc = all_cmc.float().mean(0) * 100
+    # all_cmc = all_cmc[topk - 1]
+
+    if not get_mAP:
+        return all_cmc, indices
+
+    num_rel = matches.sum(1)  # q
+    tmp_cmc = matches.cumsum(1)  # q * k
+
+    inp = [tmp_cmc[i][match_row.nonzero()[-1]] / (match_row.nonzero()[-1] + 1.) for i, match_row in enumerate(matches)]
+    mINP = torch.cat(inp).mean() * 100
+
+    tmp_cmc = [tmp_cmc[:, i] / (i + 1.0) for i in range(tmp_cmc.shape[1])]
+    tmp_cmc = torch.stack(tmp_cmc, 1) * matches
+    AP = tmp_cmc.sum(1) / num_rel  # q
+    mAP = AP.mean() * 100
+
+    return all_cmc, mAP, mINP, indices
 
 
-def euclidean_distance(qf, gf):
-    m = qf.shape[0]
-    n = gf.shape[0]
-    dist_mat = torch.pow(qf, 2).sum(dim=1, keepdim=True).expand(m, n) + \
-               torch.pow(gf, 2).sum(dim=1, keepdim=True).expand(n, m).t()
-    dist_mat.addmm_(1, -2, qf, gf.t())
-    return dist_mat.cpu().numpy()
+class Evaluator():
+    def __init__(self, img_loader, txt_loader):
+        self.img_loader = img_loader # gallery
+        self.txt_loader = txt_loader # query
+        self.logger = logging.getLogger("transreid.eval")
 
-def cosine_similarity(qf, gf):
-    epsilon = 0.00001
-    dist_mat = qf.mm(gf.t())
-    qf_norm = torch.norm(qf, p=2, dim=1, keepdim=True)  # mx1
-    gf_norm = torch.norm(gf, p=2, dim=1, keepdim=True)  # nx1
-    qg_normdot = qf_norm.mm(gf_norm.t())
+    def _compute_embedding(self, model):
+        model = model.eval()
+        device = next(model.parameters()).device
 
-    dist_mat = dist_mat.mul(1 / qg_normdot).cpu().numpy()
-    dist_mat = np.clip(dist_mat, -1 + epsilon, 1 - epsilon)
-    dist_mat = np.arccos(dist_mat)
-    return dist_mat
+        qids, gids, qfeats, gfeats, qembed, gembed,text_attr= [], [], [], [], [], [], []
+        # text
+        for pid, caption in self.txt_loader:
+            # caption = caption.to(device)
+            with torch.no_grad():
+                text_outputs = model.text_encoder.bert( input_ids=caption['input_ids'].squeeze(1).to('cuda'),token_type_ids=caption['token_type_ids'].squeeze(1).to('cuda'),attention_mask=caption['attention_mask'].squeeze(1).to('cuda'),
+            return_dict=True, mode='text')
+                text_embeds = text_outputs.last_hidden_state 
+                # text_embeds = text_embeds @ model.text_projection  # 将 (batch, seq_len, 768) 转为 (batch, seq_len, 1024)
+                text_feat = text_embeds[:, 0, :]
+            qids.append(pid.view(-1)) # flatten 
+            qfeats.append(text_feat)
+            qembed.append(text_embeds)
+            text_attr.append(caption['attention_mask'].squeeze(1).to('cuda'))
+        text_atts = torch.cat(text_attr, 0)
+        qids = torch.cat(qids, 0)
+        qfeats = torch.cat(qfeats, 0)
+        qembed = torch.cat(qembed, 0)
 
+        # image
+        for pid, img in self.img_loader:
+            img = img.to(device)
+            with torch.no_grad():
+                global_feat, featmaps = model.base(img)
+                batch = featmaps[-1].size(0)
+                local_feat_all = featmaps[-1].view(batch, 1024, 12 * 4).permute(0, 2, 1)
+                image_embeds = torch.cat((global_feat.unsqueeze(1), local_feat_all), dim=1)#TODO
+                image_embeds = image_embeds @ model.image_projection
+                image_feat = image_embeds[:, 0, :]
+            gids.append(pid.view(-1)) # flatten 
+            gfeats.append(image_feat)
+            gembed.append(image_embeds)
+        gids = torch.cat(gids, 0)
+        gfeats = torch.cat(gfeats, 0)
+        gembed = torch.cat(gembed, 0)
 
-def eval_func(distmat, q_pids, g_pids, q_camids, g_camids, max_rank=50):
-    """Evaluation with market1501 metric
-        Key: for each query identity, its gallery images from the same camera view are discarded.
-        """
-    num_q, num_g = distmat.shape
-    # distmat g
-    #    q    1 3 2 4
-    #         4 1 2 3
-    if num_g < max_rank:
-        max_rank = num_g
-        print("Note: number of gallery samples is quite small, got {}".format(num_g))
-    indices = np.argsort(distmat, axis=1)
-    #  0 2 1 3
-    #  1 2 3 0
-    matches = (g_pids[indices] == q_pids[:, np.newaxis]).astype(np.int32)
-    # compute cmc curve for each query
-    all_cmc = []
-    all_AP = []
-    num_valid_q = 0.  # number of valid query
-    for q_idx in range(num_q):
-        # get query pid and camid
-        q_pid = q_pids[q_idx]
-        q_camid = q_camids[q_idx]
+        return qfeats, gfeats, qids, gids, qembed, gembed, text_atts
+    
+    def eval(self, model, i2t_metric=False):
 
-        # remove gallery samples that have the same pid and camid with query
-        order = indices[q_idx]  # select one row
-        remove = (g_pids[order] == q_pid) & (g_camids[order] == q_camid)
-        keep = np.invert(remove)
+        qfeats, gfeats, qids, gids, qembed, gembed, text_atts= self._compute_embedding(model)
 
-        # compute cmc curve
-        # binary vector, positions with value 1 are correct matches
-        orig_cmc = matches[q_idx][keep]
-        if not np.any(orig_cmc):
-            # this condition is true when query identity does not appear in gallery
-            continue
+        qfeats = F.normalize(qfeats, p=2, dim=1) # text features
+        gfeats = F.normalize(gfeats, p=2, dim=1) # image features
 
-        cmc = orig_cmc.cumsum()
-        cmc[cmc > 1] = 1
+        similarity = qfeats @ gfeats.t()
+        score_matrix_t2i = evaluation_itm(
+            model, similarity, gembed, qembed, text_atts
+        )
+        
+        t2i_cmc, t2i_mAP, t2i_mINP, _ = rank(similarity=score_matrix_t2i, q_pids=qids, g_pids=gids, max_rank=10, get_mAP=True)
+        t2i_cmc, t2i_mAP, t2i_mINP = t2i_cmc.numpy(), t2i_mAP.numpy(), t2i_mINP.numpy()
+        table = PrettyTable(["task", "R1", "R5", "R10", "mAP", "mINP"])
+        table.add_row(['t2i', t2i_cmc[0], t2i_cmc[4], t2i_cmc[9], t2i_mAP, t2i_mINP])
 
-        all_cmc.append(cmc[:max_rank])
-        num_valid_q += 1.
-
-        # compute average precision
-        # reference: https://en.wikipedia.org/wiki/Evaluation_measures_(information_retrieval)#Average_precision
-        num_rel = orig_cmc.sum()
-        tmp_cmc = orig_cmc.cumsum()
-        y = np.arange(1, tmp_cmc.shape[0] + 1) * 1.0
-        tmp_cmc = tmp_cmc / y
-        tmp_cmc = np.asarray(tmp_cmc) * orig_cmc
-        AP = tmp_cmc.sum() / num_rel
-        all_AP.append(AP)
-
-    assert num_valid_q > 0, "Error: all query identities do not appear in gallery"
-
-    all_cmc = np.asarray(all_cmc).astype(np.float32)
-    all_cmc = all_cmc.sum(0) / num_valid_q
-    mAP = np.mean(all_AP)
-
-    return all_cmc, mAP
-
-
-class R1_mAP_eval():
-    def __init__(self, num_query, max_rank=50, feat_norm=True, reranking=False):
-        super(R1_mAP_eval, self).__init__()
-        self.num_query = num_query
-        self.max_rank = max_rank
-        self.feat_norm = feat_norm
-        self.reranking = reranking
-
-    def reset(self):
-        self.feats = []
-        self.pids = []
-        self.camids = []
-
-    def update(self, output):  # called once for each batch
-        feat, pid, camid = output
-        self.feats.append(feat.cpu())
-        self.pids.extend(np.asarray(pid))
-        self.camids.extend(np.asarray(camid))
-
-    def compute(self):  # called after each epoch
-        feats = torch.cat(self.feats, dim=0)
-        if self.feat_norm:
-            print("The test feature is normalized")
-            feats = torch.nn.functional.normalize(feats, dim=1, p=2)  # along channel
-        # query
-        qf = feats[:self.num_query]
-        q_pids = np.asarray(self.pids[:self.num_query])
-        q_camids = np.asarray(self.camids[:self.num_query])
-        # gallery
-        gf = feats[self.num_query:]
-        g_pids = np.asarray(self.pids[self.num_query:])
-
-        g_camids = np.asarray(self.camids[self.num_query:])
-        if self.reranking:
-            print('=> Enter reranking')
-            distmat = re_ranking(qf, gf, k1=20, k2=6, lambda_value=0.3)
-
-        else:
-            print('=> Computing DistMat with euclidean_distance')
-            distmat = euclidean_distance(qf, gf)
-        cmc, mAP = eval_func(distmat, q_pids, g_pids, q_camids, g_camids)
-
-        return cmc, mAP, distmat, self.pids, self.camids, qf, gf
-
-
-
+        # if i2t_metric:
+        #     i2t_cmc, i2t_mAP, i2t_mINP, _ = rank(similarity=similarity.t(), q_pids=gids, g_pids=qids, max_rank=10, get_mAP=True)
+        #     i2t_cmc, i2t_mAP, i2t_mINP = i2t_cmc.numpy(), i2t_mAP.numpy(), i2t_mINP.numpy()
+        #     table.add_row(['i2t', i2t_cmc[0], i2t_cmc[4], i2t_cmc[9], i2t_mAP, i2t_mINP])
+        # # table.float_format = '.4'
+        # table.custom_format["R1"] = lambda f, v: f"{v:.3f}"
+        # table.custom_format["R5"] = lambda f, v: f"{v:.3f}"
+        # table.custom_format["R10"] = lambda f, v: f"{v:.3f}"
+        # table.custom_format["mAP"] = lambda f, v: f"{v:.3f}"
+        # table.custom_format["mINP"] = lambda f, v: f"{v:.3f}"
+        # self.logger.info('\n' + str(table))
+        
+        return t2i_cmc[0], t2i_cmc[4], t2i_cmc[9], t2i_mAP, t2i_mINP

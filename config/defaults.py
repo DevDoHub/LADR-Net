@@ -42,10 +42,10 @@ _C.MODEL.FUSION_BRANCH = ''
 _C.MODEL.ID_LOSS_TYPE = 'softmax'
 _C.MODEL.ID_LOSS_WEIGHT = 1.0
 _C.MODEL.TRIPLET_LOSS_WEIGHT = 1.0
-_C.MODEL.BIO_ID_LOSS_WEIGHT = 0.3
-_C.MODEL.CLOT_ID_LOSS_WEIGHT = 0.3
-_C.MODEL.BIO_TRIPLET_LOSS_WEIGHT = 0.3
-_C.MODEL.CLOT_TRIPLET_LOSS_WEIGHT = 0.3
+_C.MODEL.BIO_ID_LOSS_WEIGHT = 0.5
+_C.MODEL.CLOT_ID_LOSS_WEIGHT = 0.5
+_C.MODEL.BIO_TRIPLET_LOSS_WEIGHT = 0.5
+_C.MODEL.CLOT_TRIPLET_LOSS_WEIGHT = 0.65
 
 _C.MODEL.METRIC_LOSS_TYPE = 'triplet'
 # If train with multi-gpu ddp mode, options: 'True', 'False'
@@ -81,7 +81,7 @@ _C.MODEL.RE_ARRANGE = True
 _C.MODEL.SIE_COE = 3.0
 _C.MODEL.SIE_CAMERA = False
 _C.MODEL.SIE_VIEW = False
-
+_C.MODEL.TEXT_LENGTH = 77
 # Semantic Weight
 _C.MODEL.SEMANTIC_WEIGHT = 1.0
 
@@ -114,7 +114,7 @@ _C.DATASETS.NAMES = ('market1501')
 _C.DATASETS.ROOT_DIR = ('../data')
 _C.DATASETS.ROOT_TRAIN_DIR = ('../data')
 _C.DATASETS.ROOT_VAL_DIR = ('../data')
-
+_C.DATASETS.ROOT_TEST_DIR = ('./data/cuhkpedes')
 
 # -----------------------------------------------------------------------------
 # DataLoader
