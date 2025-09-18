@@ -36,7 +36,7 @@ def make_loss(cfg, num_classes):    # modified by gu
 
     #  elif cfg.DATALOADER.SAMPLER in ['softmax_triplet', 'id_triplet', 'img_triplet']:
     elif 'triplet' in sampler:
-        def loss_func(score, f_logits, c_logits, feat, bio_f, clot_f, target, text_embeds_s, text_score, target_cam, epoch):
+        def loss_func(score, f_logits, c_logits, feat, bio_f, clot_f, target, text_embeds_s, text_score, target_cam, epoch, local_feat_all=None, loss_itm=None, loss_itc=None):
             LOSS = 0
             # if epoch < 40:
             #     loss_weight = 1
@@ -163,6 +163,31 @@ def make_loss(cfg, num_classes):    # modified by gu
                 #         CLOT_ID_LOSS = F.cross_entropy(c_logits, target)
                 #         LOSS +=  loss_weight * cfg.MODEL.BIO_TRIPLET_LOSS_WEIGHT * CLOT_ID_LOSS
 
+
+                # 确保所有输入参数都参与损失计算，防止DDP未使用参数错误
+                
+                # 处理 local_feat_all
+                if local_feat_all is not None:
+                    try:
+                        # 确保 local_feat_all 参与梯度计算（即使权重很小）
+                        local_regularization = local_feat_all.pow(2).mean() * 1e-8
+                        LOSS = LOSS + local_regularization
+                    except:
+                        pass
+                
+                # 处理 loss_itm 和 loss_itc（这些通常已经是计算好的损失值）
+                if loss_itm is not None:
+                    LOSS = LOSS + loss_itm * 10  # 使用权重10
+                
+                if loss_itc is not None:
+                    LOSS = LOSS + loss_itc * 6   # 使用权重6
+                
+                # 添加极小的正则化项，确保bio_f和clot_f参与梯度计算
+                param_regularization = (
+                    bio_f.pow(2).mean() * 1e-8 +
+                    clot_f.pow(2).mean() * 1e-8
+                )
+                LOSS = LOSS + param_regularization
 
                 return LOSS, smi_loss
             # return cfg.MODEL.ID_LOSS_WEIGHT * ID_LOSS + \

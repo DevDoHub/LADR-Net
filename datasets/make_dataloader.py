@@ -105,13 +105,14 @@ def make_dataloader(cfg):
             print('DIST_TRAIN START')
             mini_batch_size = cfg.SOLVER.IMS_PER_BATCH // dist.get_world_size()
             data_sampler = RandomIdentitySampler_DDP(dataset.train, cfg.SOLVER.IMS_PER_BATCH, cfg.DATALOADER.NUM_INSTANCE)
-            batch_sampler = torch.utils.data.sampler.BatchSampler(data_sampler, mini_batch_size, True)
             train_loader = torch.utils.data.DataLoader(
                 train_set,
+                batch_size=mini_batch_size,
+                sampler=data_sampler,
                 num_workers=num_workers,
-                batch_sampler=batch_sampler,
                 collate_fn=train_collate_fn,
                 pin_memory=False,
+                drop_last=True,  # 确保批次大小一致
             )
         else:
             train_loader = DataLoader(

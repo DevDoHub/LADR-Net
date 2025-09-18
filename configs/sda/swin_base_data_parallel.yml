@@ -1,0 +1,57 @@
+MODEL:
+  PRETRAIN_HW_RATIO: 2
+  METRIC_LOSS_TYPE: 'triplet'
+  IF_LABELSMOOTH: 'off'
+  IF_WITH_CENTER: 'no'
+  NAME: 'transformer'
+  NO_MARGIN: True
+  DEVICE_ID: ('0,1')  # 多GPU设备
+  TRANSFORMER_TYPE: 'swin_base_patch4_window7_224'
+  STRIDE_SIZE: [16, 16]
+  FUSION_BRANCH: 'bio+clot'
+  TEXT_LENGTH: 56
+  DIST_TRAIN: True   # 启用分布式训练（数据并行）
+
+INPUT:
+  SIZE_TRAIN: [384, 128]
+  SIZE_TEST: [384, 128]
+  PROB: 0.5 # random horizontal flip
+  RE_PROB: 0.5 # random erasing
+  PADDING: 10
+  PIXEL_MEAN: [0.5, 0.5, 0.5]
+  PIXEL_STD: [0.5, 0.5, 0.5]
+
+DATASETS:
+  NAMES: ('sda')
+  ROOT_DIR: ('/hy-tmp/')
+  ROOT_TEST_DIR: ('./data/cuhkpedes/reid_raw.json')
+
+DATALOADER:
+  SAMPLER: 'softmax_triplet'
+  NUM_INSTANCE: 2  # 每个identity的实例数，数据并行时可以增加
+  NUM_WORKERS: 16   # 增加数据加载工作进程
+
+SOLVER:
+  OPTIMIZER_NAME: 'SGD'
+  MAX_EPOCHS: 100
+  BASE_LR: 0.0008  # 减少学习率
+  WARMUP_EPOCHS: 20
+  IMS_PER_BATCH: 32  # 减少批次大小到32
+  WARMUP_METHOD: 'cosine'
+  LARGE_FC_LR: False
+  CHECKPOINT_PERIOD: 5
+  LOG_PERIOD: 5      # 更频繁的日志输出
+  EVAL_PERIOD: 5
+  WEIGHT_DECAY: 1e-4
+  WEIGHT_DECAY_BIAS: 1e-4
+  BIAS_LR_FACTOR: 2
+
+TEST:
+  EVAL: True
+  IMS_PER_BATCH: 32  # 测试时的批次大小
+  RE_RANKING: False
+  WEIGHT: ''
+  NECK_FEAT: 'before'
+  FEAT_NORM: 'yes'
+
+OUTPUT_DIR: './log/sda/swin_base_data_parallel'

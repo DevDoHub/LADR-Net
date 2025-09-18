@@ -1,0 +1,111 @@
+#!/usr/bin/env python3
+"""
+数据并行训练启动脚本
+将数据分布到2个GPU上进行并行训练
+"""
+
+import subprocess
+import sys
+import os
+import time
+import signal
+
+def signal_handler(sig, frame):
+    print('\n训练被用户中断，正在清理...')
+    sys.exit(0)
+
+def main():
+    # 注册信号处理器
+    signal.signal(signal.SIGINT, signal_handler)
+    
+    print("="*60)
+    print("启动数据并行训练...")
+    print("配置信息:")
+    print(f"  - PyTorch版本: 1.7.1+cu110")
+    print(f"  - GPU数量: 2个4090")
+    print(f"  - 训练方式: 数据并行 (DistributedDataParallel)")
+    print(f"  - 后端: NCCL")
+    print(f"  - 启动方式: torch.distributed.launch (适配PyTorch 1.7.1)")
+    print(f"  - 每个GPU处理不同的数据批次，模型参数在GPU间同步")
+    print("="*60)
+    
+    # 数据并行训练命令 - 使用torch.distributed.launch (适配PyTorch 1.7.1)
+    cmd = [
+        'python', '-m', 'torch.distributed.launch',
+        '--nproc_per_node=2',  # 每个节点的进程数（GPU数量）
+        '--nnodes=1',          # 节点数量
+        '--node_rank=0',       # 当前节点的rank
+        '--master_addr=localhost',  # 主节点地址
+        '--master_port=12355',      # 主节点端口
+        'train.py',
+        '--config_file', 'configs/sda/swin_base_data_parallel.yml',
+        'MODEL.PRETRAIN_CHOICE', "'self'",
+        'MODEL.PRETRAIN_PATH', "'./checkpoint_tea.pth'",
+        'OUTPUT_DIR', "'./log/sda/swin_base_data_parallel'",
+        'SOLVER.BASE_LR', '0.0016',  # 学习率线性扩展 (0.0008 * 2)
+        'SOLVER.OPTIMIZER_NAME', "'SGD'",
+        'MODEL.SEMANTIC_WEIGHT', '0.2',
+        'MODEL.DIST_TRAIN', 'True',       # 确保开启分布式训练
+        'SOLVER.IMS_PER_BATCH', '64',     # 总batch size (每个GPU 32)
+    ]
+    
+    print(f"执行命令: {' '.join(cmd)}")
+    print("-"*60)
+    
+    try:
+        # 设置环境变量
+        env = os.environ.copy()
+        env['CUDA_VISIBLE_DEVICES'] = '0,1'  # 使用两个GPU
+        
+        # 记录开始时间
+        start_time = time.time()
+        
+        # 创建输出目录
+        output_dir = './log/sda/swin_base_data_parallel'
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # 将启动信息写入日志
+        with open(os.path.join(output_dir, 'training_launch.log'), 'w') as f:
+            f.write(f"Training launched at: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"Command: {' '.join(cmd)}\n")
+            f.write(f"Environment variables:\n")
+            for key, value in env.items():
+                if 'CUDA' in key or 'MASTER' in key:
+                    f.write(f"  {key}={value}\n")
+        
+        print("开始训练...")
+        result = subprocess.run(cmd, check=True, env=env)
+        
+        # 计算训练时间
+        end_time = time.time()
+        duration = end_time - start_time
+        hours = int(duration // 3600)
+        minutes = int((duration % 3600) // 60)
+        seconds = int(duration % 60)
+        
+        print("="*60)
+        print("🎉 数据并行训练成功完成!")
+        print(f"⏱️  总耗时: {hours}小时 {minutes}分钟 {seconds}秒")
+        print(f"📁 日志目录: {output_dir}")
+        print(f"📊 检查以下文件获取详细信息:")
+        print(f"   - train_log_rank0_of_2.txt (主进程日志)")
+        print(f"   - train_log_rank1_of_2.txt (辅进程日志)")
+        print(f"   - training_summary.txt (训练汇总)")
+        print("="*60)
+        
+        return 0
+        
+    except subprocess.CalledProcessError as e:
+        print("❌ 训练失败!")
+        print(f"错误代码: {e.returncode}")
+        print("请检查错误日志以获取详细信息")
+        return 1
+    except KeyboardInterrupt:
+        print("⚠️  训练被用户中断")
+        return 1
+    except Exception as e:
+        print(f"❌ 发生未预期的错误: {e}")
+        return 1
+
+if __name__ == "__main__":
+    sys.exit(main())

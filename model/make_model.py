@@ -392,11 +392,13 @@ class build_transformer(nn.Module):
         return (loss_i2t + loss_t2i) / 2
 
     def forward(self, x, instruction, label=None, cam_label= None, view_label=None):
-
+        # 获取模型当前所在的设备
+        device = next(self.parameters()).device
+        
         text_outputs = self.text_encoder.bert(
-            input_ids=instruction['input_ids'].to('cuda'),
-            token_type_ids=instruction['token_type_ids'].to('cuda'),
-            attention_mask=instruction['attention_mask'].to('cuda'),
+            input_ids=instruction['input_ids'].to(device),
+            token_type_ids=instruction['token_type_ids'].to(device),
+            attention_mask=instruction['attention_mask'].to(device),
             return_dict=True, mode='text'
         )
         text_embeds = text_outputs.last_hidden_state 
@@ -411,7 +413,7 @@ class build_transformer(nn.Module):
         local_feat_all = featmaps[-1].view(batch, 1024, 12 * 4).permute(0, 2, 1)
         image_embeds = torch.cat((global_feat.unsqueeze(1), local_feat_all), dim=1)#TODO
         image_embeds = image_embeds @ self.image_projection
-        image_atts = torch.ones(image_embeds.size()[:-1], dtype=torch.long).to('cuda')
+        image_atts = torch.ones(image_embeds.size()[:-1], dtype=torch.long).to(device)
         image_feat = image_embeds[:, 0, :]
 
  

@@ -60,6 +60,12 @@ def mAP(scores_t2i, g_pids, q_pids, table=None):
 @torch.no_grad()
 def evaluation_itm(model, sims_matrix, image_embeds, text_embeds, text_atts, himage_embeds=None):
     model.eval()
+    
+    # Handle DistributedDataParallel model
+    if hasattr(model, 'module'):
+        model_module = model.module
+    else:
+        model_module = model
 
     header = 'Evaluation:'
     print('### Computing matching score -->')
@@ -72,12 +78,12 @@ def evaluation_itm(model, sims_matrix, image_embeds, text_embeds, text_atts, him
 
         encoder_output = image_embeds[topk_idx]
         encoder_att = torch.ones(encoder_output.size()[:-1], dtype=torch.long).to('cuda')
-        output = model.dual_attn(
+        output = model_module.dual_attn(
             encoder_output, encoder_att,
             text_embeds[i].repeat(512, 1, 1),
             text_atts[i].repeat(512, 1)
         )[:, 0, :]
-        score = model.itm_head(output)[:, 1]
+        score = model_module.itm_head(output)[:, 1]
         score_matrix_t2i[i, topk_idx] = score
 
 

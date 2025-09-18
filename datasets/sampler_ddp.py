@@ -140,57 +140,56 @@ class RandomIdentitySampler_DDP(Sampler):
                 num = self.num_instances
             self.length += num - num % self.num_instances
 
+        # 计算总批次数，然后分配给各个rank
+        total_batches = len(self.pids) // self.num_pids_per_batch
+        batches_per_rank = total_batches // self.world_size
+        self.length = batches_per_rank * self.mini_batch_size
+        
         self.rank = dist.get_rank()
-        #self.world_size = dist.get_world_size()
-        self.length //= self.world_size
 
     def __iter__(self):
-        seed = shared_random_seed()
-        np.random.seed(seed)
-        self._seed = int(seed)
-        final_idxs = self.sample_list()
-        length = int(math.ceil(len(final_idxs) * 1.0 / self.world_size))
-        #final_idxs = final_idxs[self.rank * length:(self.rank + 1) * length]
-        final_idxs = self.__fetch_current_node_idxs(final_idxs, length)
-        self.length = len(final_idxs)
-        return iter(final_idxs)
-
-
-    def __fetch_current_node_idxs(self, final_idxs, length):
-        total_num = len(final_idxs)
-        block_num = (length // self.mini_batch_size)
-        index_target = []
-        for i in range(0, block_num * self.world_size, self.world_size):
-            index = range(self.mini_batch_size * self.rank + self.mini_batch_size * i, min(self.mini_batch_size * self.rank + self.mini_batch_size * (i+1), total_num))
-            index_target.extend(index)
-        index_target_npy = np.array(index_target)
-        final_idxs = list(np.array(final_idxs)[index_target_npy])
-        return final_idxs
-
-
-    def sample_list(self):
-        #np.random.seed(self._seed)
-        avai_pids = copy.deepcopy(self.pids)
-        batch_idxs_dict = {}
-
-        batch_indices = []
-        while len(avai_pids) >= self.num_pids_per_batch:
-            selected_pids = np.random.choice(avai_pids, self.num_pids_per_batch, replace=False).tolist()
+        # 简化的随机种子设置，避免分布式同步问题
+        base_seed = 42 + self.rank  # 每个rank使用不同但确定的种子
+        np.random.seed(base_seed)
+        random.seed(base_seed)
+        
+        print(f"Rank {self.rank}: Starting sampling with {len(self.pids)} pids, need {self.num_pids_per_batch} per batch")
+        
+        # 采用单GPU相同的逻辑
+        pids = self.pids.copy()
+        random.shuffle(pids)
+        batch = []
+        
+        batch_count = 0
+        while len(pids) >= self.num_pids_per_batch:
+            print(f'Rank {self.rank} Batch {batch_count}: pids remaining = {len(pids)}, need = {self.num_pids_per_batch}')
+            
+            selected_pids = random.sample(pids, self.num_pids_per_batch)
+            
             for pid in selected_pids:
-                if pid not in batch_idxs_dict:
-                    idxs = copy.deepcopy(self.index_dic[pid])
-                    if len(idxs) < self.num_instances:
-                        idxs = np.random.choice(idxs, size=self.num_instances, replace=True).tolist()
-                    np.random.shuffle(idxs)
-                    batch_idxs_dict[pid] = idxs
+                idxs = self.index_dic[pid]
+                if len(idxs) < self.num_instances:
+                    idxs = np.random.choice(idxs, size=self.num_instances, replace=True)
+                else:
+                    idxs = random.sample(idxs, self.num_instances)
+                batch.extend(idxs)
+            
+            # 关键：使用与单GPU相同的方式
+            yield from batch
+            batch = []
+            
+            # 移除已使用的pid
+            for pid in selected_pids:
+                pids.remove(pid)
+                
+            batch_count += 1
+            
+            # 分布式训练时，每个rank只处理部分批次
+            if batch_count >= (len(self.pids) // self.num_pids_per_batch // self.world_size):
+                break
+                
+        print(f"Rank {self.rank}: Completed {batch_count} batches")
 
-                avai_idxs = batch_idxs_dict[pid]
-                for _ in range(self.num_instances):
-                    batch_indices.append(avai_idxs.pop(0))
-
-                if len(avai_idxs) < self.num_instances: avai_pids.remove(pid)
-
-        return batch_indices
 
     def __len__(self):
         return self.length

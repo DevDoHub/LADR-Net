@@ -1,4 +1,5 @@
 from utils.logger import setup_logger
+from utils.distributed_logger import setup_distributed_logger
 from datasets import make_dataloader
 from model import make_model
 from solver import make_optimizer, WarmupMultiStepLR
@@ -50,7 +51,16 @@ if __name__ == '__main__':
     except:
         pass
 
-    logger = setup_logger("transreid", output_dir, if_train=True)
+    # 使用分布式日志记录器
+    if cfg.MODEL.DIST_TRAIN and dist.is_initialized():
+        logger = setup_distributed_logger("transreid", output_dir, if_train=True)
+        rank = dist.get_rank()
+        world_size = dist.get_world_size()
+        logger.info(f"Distributed training initialized - Rank {rank}/{world_size-1}")
+    else:
+        logger = setup_logger("transreid", output_dir, if_train=True)
+        logger.info("Single GPU training mode")
+        
     logger.info("Saving model in the path :{}".format(cfg.OUTPUT_DIR))
     #  logger.info(args)
 

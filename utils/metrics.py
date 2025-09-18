@@ -9,7 +9,7 @@ from utils.eval import evaluation_itm
 
 def rank(similarity, q_pids, g_pids, max_rank=10, get_mAP=True):
     if get_mAP:
-        score_matrix_t2i = torch.tensor(similarity)
+        score_matrix_t2i = similarity.clone().detach() if isinstance(similarity, torch.Tensor) else torch.tensor(similarity)
         indices = torch.argsort(score_matrix_t2i, dim=1, descending=True)
     else:
         # acclerate sort with topk
@@ -30,7 +30,7 @@ def rank(similarity, q_pids, g_pids, max_rank=10, get_mAP=True):
     num_rel = matches.sum(1)  # q
     tmp_cmc = matches.cumsum(1)  # q * k
 
-    inp = [tmp_cmc[i][match_row.nonzero()[-1]] / (match_row.nonzero()[-1] + 1.) for i, match_row in enumerate(matches)]
+    inp = [tmp_cmc[i][match_row.nonzero(as_tuple=False)[-1]] / (match_row.nonzero(as_tuple=False)[-1] + 1.) for i, match_row in enumerate(matches)]
     mINP = torch.cat(inp).mean() * 100
 
     tmp_cmc = [tmp_cmc[:, i] / (i + 1.0) for i in range(tmp_cmc.shape[1])]
@@ -50,13 +50,19 @@ class Evaluator():
     def _compute_embedding(self, model):
         model = model.eval()
         device = next(model.parameters()).device
+        
+        # Handle DistributedDataParallel model
+        if hasattr(model, 'module'):
+            model_module = model.module
+        else:
+            model_module = model
 
         qids, gids, qfeats, gfeats, qembed, gembed,text_attr= [], [], [], [], [], [], []
         # text
         for pid, caption in self.txt_loader:
             # caption = caption.to(device)
             with torch.no_grad():
-                text_outputs = model.text_encoder.bert( input_ids=caption['input_ids'].squeeze(1).to('cuda'),token_type_ids=caption['token_type_ids'].squeeze(1).to('cuda'),attention_mask=caption['attention_mask'].squeeze(1).to('cuda'),
+                text_outputs = model_module.text_encoder.bert( input_ids=caption['input_ids'].squeeze(1).to('cuda'),token_type_ids=caption['token_type_ids'].squeeze(1).to('cuda'),attention_mask=caption['attention_mask'].squeeze(1).to('cuda'),
             return_dict=True, mode='text')
                 text_embeds = text_outputs.last_hidden_state 
                 # text_embeds = text_embeds @ model.text_projection  # 将 (batch, seq_len, 768) 转为 (batch, seq_len, 1024)
@@ -74,11 +80,11 @@ class Evaluator():
         for pid, img in self.img_loader:
             img = img.to(device)
             with torch.no_grad():
-                global_feat, featmaps = model.base(img)
+                global_feat, featmaps = model_module.base(img)
                 batch = featmaps[-1].size(0)
                 local_feat_all = featmaps[-1].view(batch, 1024, 12 * 4).permute(0, 2, 1)
                 image_embeds = torch.cat((global_feat.unsqueeze(1), local_feat_all), dim=1)#TODO
-                image_embeds = image_embeds @ model.image_projection
+                image_embeds = image_embeds @ model_module.image_projection
                 image_feat = image_embeds[:, 0, :]
             gids.append(pid.view(-1)) # flatten 
             gfeats.append(image_feat)
@@ -92,13 +98,19 @@ class Evaluator():
     def eval(self, model, i2t_metric=False):
 
         qfeats, gfeats, qids, gids, qembed, gembed, text_atts= self._compute_embedding(model)
+        
+        # Handle DistributedDataParallel model for evaluation_itm
+        if hasattr(model, 'module'):
+            model_for_eval = model.module
+        else:
+            model_for_eval = model
 
         qfeats = F.normalize(qfeats, p=2, dim=1) # text features
         gfeats = F.normalize(gfeats, p=2, dim=1) # image features
 
         similarity = qfeats @ gfeats.t()
         score_matrix_t2i = evaluation_itm(
-            model, similarity, gembed, qembed, text_atts
+            model_for_eval, similarity, gembed, qembed, text_atts
         )
         
         t2i_cmc, t2i_mAP, t2i_mINP, _ = rank(similarity=score_matrix_t2i, q_pids=qids, g_pids=gids, max_rank=10, get_mAP=True)
