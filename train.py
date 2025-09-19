@@ -1,5 +1,4 @@
 from utils.logger import setup_logger
-from utils.distributed_logger import setup_distributed_logger
 from datasets import make_dataloader
 from model import make_model
 from solver import make_optimizer, WarmupMultiStepLR
