@@ -36,7 +36,7 @@ SOLVER:
   MAX_EPOCHS: 100
   BASE_LR: 0.0008  # 减少学习率
   WARMUP_EPOCHS: 20
-  IMS_PER_BATCH: 32  # 减少批次大小到32
+  IMS_PER_BATCH: 64  # 减少批次大小到64
   WARMUP_METHOD: 'cosine'
   LARGE_FC_LR: False
   CHECKPOINT_PERIOD: 5
@@ -48,7 +48,7 @@ SOLVER:
 
 TEST:
   EVAL: True
-  IMS_PER_BATCH: 32  # 测试时的批次大小
+  IMS_PER_BATCH: 64  # 测试时的批次大小
   RE_RANKING: False
   WEIGHT: ''
   NECK_FEAT: 'before'

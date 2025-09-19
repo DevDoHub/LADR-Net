@@ -1,3 +1,4 @@
+import logging
 import torch
 import torchvision.transforms as T
 from torch.utils.data import DataLoader
@@ -26,6 +27,8 @@ __factory = {
     "cuhkpedes":cuhkpedes,
     'sda':SDA
 }
+
+logger = logging.getLogger("dataloading...")
 
 def train_collate_fn(batch):
     """
@@ -84,11 +87,14 @@ def make_dataloader(cfg):
     num_workers = cfg.DATALOADER.NUM_WORKERS
 
     if cfg.DATASETS.NAMES == 'ourapi':
-        dataset = OURAPI(root_train=cfg.DATASETS.ROOT_TRAIN_DIR, root_val=cfg.DATASETS.ROOT_VAL_DIR, config=cfg)
+        # dataset = OURAPI(root_train=cfg.DATASETS.ROOT_TRAIN_DIR, root_val=cfg.DATASETS.ROOT_VAL_DIR, config=cfg)
+        pass
     elif cfg.DATASETS.NAMES == 'sda':
-        dataset = __factory[cfg.DATASETS.NAMES](root=cfg.DATASETS.ROOT_DIR, test_path = cfg.DATASETS.ROOT_TEST_DIR)
+        logger.info('=> sda dataset loaded')
+        dataset = __factory[cfg.DATASETS.NAMES](root=cfg.DATASETS.ROOT_DIR, test_path=cfg.DATASETS.ROOT_TEST_DIR)
     else:
         dataset = __factory[cfg.DATASETS.NAMES](root=cfg.DATASETS.ROOT_DIR)
+
     if cfg.DATASETS.NAMES == 'real2':
         train_set = ImageDataset(dataset.train, train_transforms, json_list=cfg.JSON_DIR, is_train=True)
         train_set_normal = ImageDataset(dataset.train, val_transforms, json_list=cfg.JSON_DIR, is_train=True)
@@ -98,14 +104,14 @@ def make_dataloader(cfg):
 
     num_classes = dataset.num_train_pids
 
-
+    logger.info(f"using {cfg.DATALOADER.SAMPLER} dataloader sampler")
     if cfg.DATALOADER.SAMPLER in ['softmax_triplet', 'img_triplet']:
-        print('using img_triplet sampler')
+        logger.info(f'using {cfg.MODEL.DIST_TRAIN}')
         if cfg.MODEL.DIST_TRAIN:
-            print('DIST_TRAIN START')
+            logger.info('DIST_TRAIN START USE RandomIdentitySampler_DDP')
             mini_batch_size = cfg.SOLVER.IMS_PER_BATCH // dist.get_world_size()
             data_sampler = RandomIdentitySampler_DDP(dataset.train, cfg.SOLVER.IMS_PER_BATCH, cfg.DATALOADER.NUM_INSTANCE)
-            train_loader = torch.utils.data.DataLoader(
+            train_loader = DataLoader(
                 train_set,
                 batch_size=mini_batch_size,
                 sampler=data_sampler,

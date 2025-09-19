@@ -1,13 +1,12 @@
-from torch.utils.data.sampler import Sampler
-from collections import defaultdict
-import copy
-import random
-import numpy as np
-import math
-import torch.distributed as dist
-_LOCAL_PROCESS_GROUP = None
 import torch
 import pickle
+from torch.utils.data.sampler import Sampler
+from collections import defaultdict
+import random
+import numpy as np
+import torch.distributed as dist
+_LOCAL_PROCESS_GROUP = None
+
 
 def _get_global_gloo_group():
     """
@@ -110,87 +109,83 @@ def shared_random_seed():
 
 class RandomIdentitySampler_DDP(Sampler):
     """
+    Optimized version of RandomIdentitySampler for DDP training.
     Randomly sample N identities, then for each identity,
     randomly sample K instances, therefore batch size is N*K.
-    Args:
-    - data_source (list): list of (img_path, pid, camid).
-    - num_instances (int): number of instances per identity in a batch.
-    - batch_size (int): number of examples in a batch.
     """
 
     def __init__(self, data_source, batch_size, num_instances):
         self.data_source = data_source
         self.batch_size = batch_size
-        self.world_size = dist.get_world_size()
         self.num_instances = num_instances
+        
+        # Get world size and rank
+        self.world_size = dist.get_world_size()
+        self.rank = dist.get_rank()
+        
+        # Calculate per-GPU batch size
         self.mini_batch_size = self.batch_size // self.world_size
         self.num_pids_per_batch = self.mini_batch_size // self.num_instances
+        
+        # Build index dictionary
         self.index_dic = defaultdict(list)
-
         for index, (_, pid, _, _) in enumerate(self.data_source):
             self.index_dic[pid].append(index)
+        
         self.pids = list(self.index_dic.keys())
-
-        # estimate number of examples in an epoch
-        self.length = 0
-        for pid in self.pids:
-            idxs = self.index_dic[pid]
-            num = len(idxs)
-            if num < self.num_instances:
-                num = self.num_instances
-            self.length += num - num % self.num_instances
-
-        # 计算总批次数，然后分配给各个rank
+        
+        # Precompute the total number of batches
         total_batches = len(self.pids) // self.num_pids_per_batch
-        batches_per_rank = total_batches // self.world_size
-        self.length = batches_per_rank * self.mini_batch_size
+        self.batches_per_rank = total_batches // self.world_size
         
-        self.rank = dist.get_rank()
-
+        # Calculate length for this rank
+        self.length = self.batches_per_rank * self.mini_batch_size
+        
+        # For reproducibility
+        self.epoch = 0
+        
+    def set_epoch(self, epoch):
+        """Set the epoch for reproducibility."""
+        self.epoch = epoch
+        
     def __iter__(self):
-        # 简化的随机种子设置，避免分布式同步问题
-        base_seed = 42 + self.rank  # 每个rank使用不同但确定的种子
-        np.random.seed(base_seed)
-        random.seed(base_seed)
+        # Use epoch and rank for deterministic randomness
+        seed = self.epoch * 1000 + self.rank
+        random.seed(seed)
+        np.random.seed(seed)
         
-        print(f"Rank {self.rank}: Starting sampling with {len(self.pids)} pids, need {self.num_pids_per_batch} per batch")
+        # Create a list of all pids and shuffle
+        all_pids = self.pids.copy()
+        random.shuffle(all_pids)
         
-        # 采用单GPU相同的逻辑
-        pids = self.pids.copy()
-        random.shuffle(pids)
-        batch = []
+        # Calculate how many batches each rank should process
+        total_batches = len(all_pids) // self.num_pids_per_batch
+        batches_per_rank = total_batches // self.world_size
         
-        batch_count = 0
-        while len(pids) >= self.num_pids_per_batch:
-            print(f'Rank {self.rank} Batch {batch_count}: pids remaining = {len(pids)}, need = {self.num_pids_per_batch}')
+        # Determine the start and end indices for this rank
+        start_batch = self.rank * batches_per_rank
+        end_batch = start_batch + batches_per_rank
+        
+        # Generate indices for this rank
+        indices = []
+        for batch_idx in range(start_batch, end_batch):
+            # Get the pids for this batch
+            start_pid = batch_idx * self.num_pids_per_batch
+            end_pid = start_pid + self.num_pids_per_batch
+            batch_pids = all_pids[start_pid:end_pid]
             
-            selected_pids = random.sample(pids, self.num_pids_per_batch)
-            
-            for pid in selected_pids:
-                idxs = self.index_dic[pid]
-                if len(idxs) < self.num_instances:
-                    idxs = np.random.choice(idxs, size=self.num_instances, replace=True)
+            # For each pid, sample instances
+            for pid in batch_pids:
+                pid_indices = self.index_dic[pid]
+                if len(pid_indices) < self.num_instances:
+                    # Sample with replacement if not enough instances
+                    selected = np.random.choice(pid_indices, self.num_instances, replace=True)
                 else:
-                    idxs = random.sample(idxs, self.num_instances)
-                batch.extend(idxs)
-            
-            # 关键：使用与单GPU相同的方式
-            yield from batch
-            batch = []
-            
-            # 移除已使用的pid
-            for pid in selected_pids:
-                pids.remove(pid)
-                
-            batch_count += 1
-            
-            # 分布式训练时，每个rank只处理部分批次
-            if batch_count >= (len(self.pids) // self.num_pids_per_batch // self.world_size):
-                break
-                
-        print(f"Rank {self.rank}: Completed {batch_count} batches")
-
-
+                    # Sample without replacement if enough instances
+                    selected = random.sample(pid_indices, self.num_instances)
+                indices.extend(selected)
+        
+        return iter(indices)
+    
     def __len__(self):
         return self.length
-

@@ -37,29 +37,37 @@ def do_train(cfg,
     log_period = cfg.SOLVER.LOG_PERIOD
     checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
     eval_period = cfg.SOLVER.EVAL_PERIOD
-    # eval_period = 5#TODO
 
     device = "cuda"
     epochs = cfg.SOLVER.MAX_EPOCHS
 
     logger = logging.getLogger("transreid.train")
     logger.info('start training')
-    _LOCAL_PROCESS_GROUP = None
-    if device:
-        model.to(local_rank)
-        if torch.cuda.device_count() > 1 and cfg.MODEL.DIST_TRAIN:
-            logger.info('Using {} GPUs for training'.format(torch.cuda.device_count()))
-            
-            # 使用 DistributedDataParallel 配置
-            logger.info('Using DistributedDataParallel for training')
-            model = torch.nn.parallel.DistributedDataParallel(
-                model, 
-                device_ids=[local_rank], 
-                output_device=local_rank,
-                find_unused_parameters=True,
-                broadcast_buffers=False
-            )
+    
+    # 确保已经初始化了分布式环境
+    if cfg.MODEL.DIST_TRAIN:
+        # 获取全局进程数和工作组大小
+        world_size = dist.get_world_size()
+        logger.info(f'World size: {world_size}')
+
     model.to(local_rank)
+
+    # 如果使用分布式训练，包装模型
+    if torch.cuda.device_count() > 1 and cfg.MODEL.DIST_TRAIN:
+        logger.info('Using {} GPUs for training'.format(torch.cuda.device_count()))
+        logger.info('Using DistributedDataParallel for training')
+        
+        # 使用更优化的配置
+        model = torch.nn.parallel.DistributedDataParallel(
+            model, 
+            device_ids=[local_rank], 
+            output_device=local_rank,
+            find_unused_parameters=True,
+            broadcast_buffers=True,
+            gradient_as_bucket_view=True   # 可以提高性能
+        )
+
+    # 初始化计量器
     loss_meter = AverageMeter()
     smi_meter = AverageMeter()
     itc_meter = AverageMeter()
@@ -68,10 +76,11 @@ def do_train(cfg,
     itm_meter = AverageMeter()
     # acc_clot_meter = AverageMeter()
 
+    # 初始化评估器和梯度缩放器
     evaluator = Evaluator(val_img_loader, val_txt_loader)
     scaler = amp.GradScaler()
-    # train
 
+    # 训练循环
     for epoch in range(1, epochs + 1):
         start_time = time.time()
         loss_meter.reset()

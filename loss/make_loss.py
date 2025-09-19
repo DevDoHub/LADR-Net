@@ -93,7 +93,7 @@ def make_loss(cfg, num_classes):    # modified by gu
                     return cfg.MODEL.ID_LOSS_WEIGHT * ID_LOSS + \
                                cfg.MODEL.TRIPLET_LOSS_WEIGHT * TRI_LOSS
                 else:
-                    # img_cls cross_entropy
+                    # 1. img_cls cross_entropy
                     if isinstance(score, list):
                         ID_LOSS = [F.cross_entropy(scor, target) for scor in score[1:]]
                         ID_LOSS = sum(ID_LOSS) / len(ID_LOSS)
@@ -102,7 +102,7 @@ def make_loss(cfg, num_classes):    # modified by gu
                         ID_LOSS = F.cross_entropy(score, target)
                         LOSS += 0.3 * ID_LOSS
 
-                    #text_cls cross_entropy
+                    # 2. text_cls cross_entropy
                     if isinstance(text_score, list):
                         ID_LOSS = [F.cross_entropy(text_score, target) for scor in text_score[1:]]
                         ID_LOSS = sum(ID_LOSS) / len(ID_LOSS)
@@ -113,7 +113,26 @@ def make_loss(cfg, num_classes):    # modified by gu
 
                     # loss_itc = get_contrastive_loss(feat, text_embeds_s, idx = target)
                     # LOSS += loss_itc
+
+                    # 3. f_logits 损失 (必须包含)
+                    if f_logits is not None:
+                        if isinstance(f_logits, list):
+                            F_LOGITS_LOSS = [F.cross_entropy(logit, target) for logit in f_logits]
+                            F_LOGITS_LOSS = sum(F_LOGITS_LOSS) / len(F_LOGITS_LOSS)
+                        else:
+                            F_LOGITS_LOSS = F.cross_entropy(f_logits, target)
+                        LOSS += 0.2 * F_LOGITS_LOSS
+
+                    # 4. c_logits 损失 (必须包含)
+                    if c_logits is not None:
+                        if isinstance(c_logits, list):
+                            C_LOGITS_LOSS = [F.cross_entropy(logit, target) for logit in c_logits]
+                            C_LOGITS_LOSS = sum(C_LOGITS_LOSS) / len(C_LOGITS_LOSS)
+                        else:
+                            C_LOGITS_LOSS = F.cross_entropy(c_logits, target)
+                        LOSS += 0.2 * C_LOGITS_LOSS
                     
+                    # 5. SMI 损失
                     smi_loss = compute_sdm(feat, text_embeds_s, target, 50)  
                     # if epoch > 20:
                     LOSS += 1.5 * smi_loss
@@ -163,17 +182,18 @@ def make_loss(cfg, num_classes):    # modified by gu
                 #         CLOT_ID_LOSS = F.cross_entropy(c_logits, target)
                 #         LOSS +=  loss_weight * cfg.MODEL.BIO_TRIPLET_LOSS_WEIGHT * CLOT_ID_LOSS
 
-
+                # 6. 确保所有特征参与梯度计算（增加权重确保有效）
+                feature_regularization = (
+                    bio_f.pow(2).mean() * 1e-6 +  # 增加权重
+                    clot_f.pow(2).mean() * 1e-6    # 增加权重
+                )
+                LOSS += feature_regularization
                 # 确保所有输入参数都参与损失计算，防止DDP未使用参数错误
                 
-                # 处理 local_feat_all
+                # 7. 处理可选输入
                 if local_feat_all is not None:
-                    try:
-                        # 确保 local_feat_all 参与梯度计算（即使权重很小）
-                        local_regularization = local_feat_all.pow(2).mean() * 1e-8
-                        LOSS = LOSS + local_regularization
-                    except:
-                        pass
+                    local_regularization = local_feat_all.pow(2).mean() * 1e-6  # 增加权重
+                    LOSS += local_regularization
                 
                 # 处理 loss_itm 和 loss_itc（这些通常已经是计算好的损失值）
                 if loss_itm is not None:
@@ -181,13 +201,6 @@ def make_loss(cfg, num_classes):    # modified by gu
                 
                 if loss_itc is not None:
                     LOSS = LOSS + loss_itc * 6   # 使用权重6
-                
-                # 添加极小的正则化项，确保bio_f和clot_f参与梯度计算
-                param_regularization = (
-                    bio_f.pow(2).mean() * 1e-8 +
-                    clot_f.pow(2).mean() * 1e-8
-                )
-                LOSS = LOSS + param_regularization
 
                 return LOSS, smi_loss
             # return cfg.MODEL.ID_LOSS_WEIGHT * ID_LOSS + \

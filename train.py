@@ -12,7 +12,6 @@ import numpy as np
 import os
 import argparse
 from config import cfg
-import torch.distributed as dist
 
 def set_seed(seed):
     torch.manual_seed(seed)
@@ -24,7 +23,8 @@ def set_seed(seed):
     torch.backends.cudnn.benchmark = True
 
 if __name__ == '__main__':
-
+    ## ==>> 参数加载部分
+    # 参数解析
     parser = argparse.ArgumentParser(description="ReID Baseline Training")
     parser.add_argument(
         "--config_file", default="", help="path to config file", type=str
@@ -35,57 +35,46 @@ if __name__ == '__main__':
     parser.add_argument("--local_rank", default=0, type=int)
     args = parser.parse_args()
 
+    # 配置加载
     if args.config_file != "":
         cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
-    
+    # 配置冻结
     cfg.freeze()
+    # 设置随机种子
     set_seed(cfg.SOLVER.SEED)
 
+    ## ==>> 日志处理部分
+    # 日志记录器设置
+    logger = setup_logger('transreid', cfg.OUTPUT_DIR, if_train=True)
+
+    ## 分布式训练设置
     if cfg.MODEL.DIST_TRAIN:
         torch.cuda.set_device(args.local_rank)
-
-    output_dir = cfg.OUTPUT_DIR
-    try:
-        os.makedirs(output_dir)
-    except:
-        pass
-
-    # 使用分布式日志记录器
-    if cfg.MODEL.DIST_TRAIN and dist.is_initialized():
-        logger = setup_distributed_logger("transreid", output_dir, if_train=True)
-        rank = dist.get_rank()
-        world_size = dist.get_world_size()
-        logger.info(f"Distributed training initialized - Rank {rank}/{world_size-1}")
-    else:
-        logger = setup_logger("transreid", output_dir, if_train=True)
-        logger.info("Single GPU training mode")
-        
-    logger.info("Saving model in the path :{}".format(cfg.OUTPUT_DIR))
-    #  logger.info(args)
-
-    if args.config_file != "":
-        logger.info("Loaded configuration file {}".format(args.config_file))
-        with open(args.config_file, 'r') as cf:
-            config_str = "\n" + cf.read()
-            #  logger.info(config_str)
-
-    if cfg.MODEL.DIST_TRAIN:
         torch.distributed.init_process_group(backend='nccl', init_method='env://')
+
     logger.info("Running with config:\n{}".format(cfg))
 
-
     os.environ['CUDA_VISIBLE_DEVICES'] = cfg.MODEL.DEVICE_ID
+
+    # 加载数据集
     train_loader, train_loader_normal,  val_img_loader, val_txt_loader , num_test, num_classes = make_dataloader(cfg)
+    logger.info('using {} images for training'.format(len(train_loader.dataset)))
 
-
-
+    # 创建模型
+    logger.info("Creating model: {}".format(cfg.MODEL.NAME))
     model = make_model(cfg, num_class=num_classes, camera_num=0, view_num = 0, semantic_weight = cfg.MODEL.SEMANTIC_WEIGHT)
-    with open("model_parameters.txt", "w") as f:
+
+    ## 记录一些信息
+    # 计算模型的参数量
+    total_params = sum(p.numel() for p in model.parameters())
+    logger.info("Total model parameters: {}".format(total_params))
     # 使用 named_parameters() 获取模型的参数名称和参数本身
+    with open("model_parameters.txt", "w") as f:
         for name, param in model.named_parameters():
             # 将参数的名称写入 txt 文件
             f.write(name + "\n")
+
     loss_func, center_criterion = make_loss(cfg, num_classes=num_classes)
     optimizer, optimizer_center = make_optimizer(cfg, model, center_criterion)
 
