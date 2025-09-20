@@ -299,15 +299,15 @@ def do_train(cfg,
 
                 if cfg.MODEL.DIST_TRAIN:
                     rank = dist.get_rank()
-                    if rank == 0:  # 仅主进程打印以避免重复
-                        world_size = dist.get_world_size()
-                        logger.info(
-                            "Rank[{}/{}] Epoch[{}] Iter[{}/{}] Loss: {:.3f}, Acc: {:.3f}, Acc_text: {:.3f}, itm_loss: {:.3f}, smi_Loss: {:.3f}, itc_loss: {:.3f}, Base Lr: {:.2e}".format(
-                                rank, world_size-1, epoch, (n_iter + 1), len(train_loader),
-                                loss_meter.avg, acc_meter.avg, acc_text.avg, itm_meter.avg,
-                                smi_meter.avg, itc_meter.avg, base_lr
-                            )
+                    # if rank == 0:  # 仅主进程打印以避免重复
+                    world_size = dist.get_world_size()
+                    logger.info(
+                        "Rank[{}/{}] Epoch[{}] Iter[{}/{}] Loss: {:.3f}, Acc: {:.3f}, Acc_text: {:.3f}, itm_loss: {:.3f}, smi_Loss: {:.3f}, itc_loss: {:.3f}, Base Lr: {:.2e}".format(
+                            rank, world_size-1, epoch, (n_iter + 1), len(train_loader),
+                            loss_meter.avg, acc_meter.avg, acc_text.avg, itm_meter.avg,
+                            smi_meter.avg, itc_meter.avg, base_lr
                         )
+                    )
                 else:
                     logger.info(
                         "Epoch[{}] Iter[{}/{}] Loss: {:.3f}, Acc: {:.3f}, Acc_text: {:.3f}, itm_loss: {:.3f}, smi_Loss: {:.3f}, itc_loss: {:.3f},  Base Lr: {:.2e}".format(

@@ -1,1 +1,145 @@
-2025-09-20 15:56:06 transreid INFO: Single GPU training
+2025-09-20 17:31:59 transreid INFO: Single GPU training
+2025-09-20 17:32:03 transreid INFO: Running with config:
+DATALOADER:
+  NUM_INSTANCE: 1
+  NUM_WORKERS: 75
+  REMOVE_TAIL: 0
+  SAMPLER: softmax_triplet
+DATASETS:
+  NAMES: sda
+  ROOT_DIR: /hy-tmp/
+  ROOT_TEST_DIR: ./data/cuhkpedes/reid_raw.json
+  ROOT_TRAIN_DIR: ../data
+  ROOT_VAL_DIR: ../data
+INPUT:
+  PADDING: 10
+  PIXEL_MEAN: [0.5, 0.5, 0.5]
+  PIXEL_STD: [0.5, 0.5, 0.5]
+  PROB: 0.5
+  RE_PROB: 0.5
+  SIZE_TEST: [384, 128]
+  SIZE_TRAIN: [384, 128]
+JSON_DIR: 
+MODEL:
+  ATT_DROP_RATE: 0.0
+  BIO_ID_LOSS_WEIGHT: 0.5
+  BIO_TRIPLET_LOSS_WEIGHT: 0.5
+  CLOT_ID_LOSS_WEIGHT: 0.5
+  CLOT_TRIPLET_LOSS_WEIGHT: 0.65
+  COS_LAYER: False
+  DEVICE: cuda
+  DEVICE_ID: 0,1,2
+  DEVIDE_LENGTH: 4
+  DIST_TRAIN: True
+  DROPOUT_RATE: 0.0
+  DROP_OUT: 0.0
+  DROP_PATH: 0.1
+  FEAT_DIM: 512
+  FUSION_BRANCH: bio+clot
+  GEM_POOLING: False
+  ID_LOSS_TYPE: softmax
+  ID_LOSS_WEIGHT: 1.0
+  IF_LABELSMOOTH: off
+  IF_WITH_CENTER: no
+  JPM: False
+  LAST_STRIDE: 1
+  METRIC_LOSS_TYPE: triplet
+  NAME: transformer
+  NECK: bnneck
+  NO_MARGIN: True
+  PRETRAIN_CHOICE: self
+  PRETRAIN_HW_RATIO: 2
+  PRETRAIN_PATH: ./checkpoint_tea.pth
+  REDUCE_FEAT_DIM: False
+  RE_ARRANGE: True
+  SEMANTIC_WEIGHT: 0.2
+  SHIFT_NUM: 5
+  SHUFFLE_GROUP: 2
+  SIE_CAMERA: False
+  SIE_COE: 3.0
+  SIE_VIEW: False
+  STEM_CONV: False
+  STRIDE_SIZE: [16, 16]
+  TEXT_LENGTH: 56
+  TRANSFORMER_TYPE: swin_base_patch4_window7_224
+  TRIPLET_LOSS_WEIGHT: 1.0
+OUTPUT_DIR: ./log/sda/swin_base_data_parallel
+SOLVER:
+  BASE_LR: 0.0008
+  BIAS_LR_FACTOR: 2
+  CENTER_LOSS_WEIGHT: 0.0005
+  CENTER_LR: 0.5
+  CHECKPOINT_PERIOD: 5
+  COSINE_MARGIN: 0.5
+  COSINE_SCALE: 30
+  EVAL_PERIOD: 5
+  GAMMA: 0.1
+  IMS_PER_BATCH: 75
+  LARGE_FC_LR: False
+  LOG_PERIOD: 20
+  MARGIN: 0.3
+  MAX_EPOCHS: 100
+  MOMENTUM: 0.9
+  OPTIMIZER_NAME: SGD
+  SEED: 1234
+  STEPS: (40, 70)
+  TRP_L2: False
+  WARMUP_EPOCHS: 20
+  WARMUP_FACTOR: 0.01
+  WARMUP_METHOD: cosine
+  WEIGHT_DECAY: 0.0001
+  WEIGHT_DECAY_BIAS: 0.0001
+TEST:
+  DIST_MAT: dist_mat.npy
+  EVAL: True
+  FEAT_NORM: yes
+  IMS_PER_BATCH: 32
+  NECK_FEAT: before
+  RE_RANKING: False
+  WEIGHT: 
+2025-09-20 17:32:26 transreid.check INFO: Dataset statistics:
+2025-09-20 17:32:26 transreid.check INFO:   ----------------------------------------------------------
+2025-09-20 17:32:26 transreid.check INFO:   subset   | # ids | # images | # caption ids | # caption 
+2025-09-20 17:32:26 transreid.check INFO:   ----------------------------------------------------------
+2025-09-20 17:32:26 transreid.check INFO:   train    | 1217750 |  1217750 |   1217750 |   1217750
+2025-09-20 17:32:26 transreid.check INFO:   test     |  1000 |     3074 |      1000 |      6156
+2025-09-20 17:32:26 transreid.check INFO:   val      |  1000 |     3078 |      1000 |      6158
+2025-09-20 17:32:26 transreid.check INFO:   ----------------------------------------------------------
+2025-09-20 17:33:01 transreid INFO: using 1217750 images for training
+2025-09-20 17:33:01 transreid INFO: Creating model: transformer
+2025-09-20 17:33:24 transreid INFO: Total model parameters: 1153975797
+2025-09-20 17:34:01 transreid INFO: ===========using cosine learning rate=======
+2025-09-20 17:34:01 transreid.train INFO: start training
+2025-09-20 17:34:01 transreid.train INFO: World size: 3
+2025-09-20 17:34:03 transreid.train INFO: Using 3 GPUs for training
+2025-09-20 17:34:03 transreid.train INFO: Using DistributedDataParallel for training
+2025-09-20 17:34:59 transreid.train INFO: [DEBUG][Rank 1] first batch unique pids (25): [1823, 4261, 66567, 196986, 218069, 265180, 296795, 383612, 458013, 472163, 534333, 537444]
+2025-09-20 17:34:59 transreid.train INFO: Rank[1/2] Epoch[1] Iter[20/16236] Loss: 84.882, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.666, smi_Loss: 29.753, itc_loss: 3.264, Base Lr: 4.76e-05
+2025-09-20 17:35:30 transreid.train INFO: Rank[1/2] Epoch[1] Iter[40/16236] Loss: 84.546, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.657, smi_Loss: 29.629, itc_loss: 3.253, Base Lr: 4.76e-05
+2025-09-20 17:36:01 transreid.train INFO: Rank[1/2] Epoch[1] Iter[60/16236] Loss: 84.255, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.654, smi_Loss: 29.497, itc_loss: 3.243, Base Lr: 4.76e-05
+2025-09-20 17:36:33 transreid.train INFO: Rank[1/2] Epoch[1] Iter[80/16236] Loss: 84.047, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.651, smi_Loss: 29.402, itc_loss: 3.237, Base Lr: 4.76e-05
+22025-09-20 17:37:06 transreid.train INFO: Rank[0/2] Epoch[1] Iter[100/16236] Loss: 83.899, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.649, smi_Loss: 29.332, itc_loss: 3.232, Base Lr: 4.76e-052025-09-20 17:37:38 transreid.train INFO: Rank[1/2] Epoch[1] Iter[120/16236] Loss: 83.779, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.647, smi_Loss: 29.280, itc_loss: 3.229, Base Lr: 4.76e-05
+2022025-09-20 17:38:11 transreid.train INFO: Rank[2/2] Epoch[1] Iter[140/16236] Loss: 83.693, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.646, smi_Loss: 29.242, itc_loss: 3.226, Base Lr: 4.76e-2025-09-20 17:38:44 transreid.train INFO: Rank[1/2] Epoch[1] Iter[160/16236] Loss: 83.611, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.645, smi_Loss: 29.207, itc_loss: 3.222, Base Lr: 4.76e-05
+2025-09-20 17:39:17 transreid.train INFO: Rank[1/2] Epoch[1] Iter[180/16236] Loss: 83.528, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.644, smi_Loss: 29.172, itc_loss: 3.219, Base Lr: 4.76e-05
+2025-09-20 17:39:50 transreid.train INFO: Rank[1/2] Epoch[1] Iter[200/16236] Loss: 83.449, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.644, smi_Loss: 29.141, itc_loss: 3.215, Base Lr: 4.76e-05
+2025-09-20 17:40:24 transreid.train INFO: Rank[1/2] Epoch[1] Iter[220/16236] Loss: 83.361, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.643, smi_Loss: 29.107, itc_loss: 3.210, Base Lr: 4.76e-05
+2025-09-20 17:40:57 transreid.train INFO: Rank[1/2] Epoch[1] Iter[240/16236] Loss: 83.253, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.643, smi_Loss: 29.069, itc_loss: 3.201, Base Lr: 4.76e-05
+2025-09-20 17:41:30 transreid.train INFO: Rank[1/2] Epoch[1] Iter[260/16236] Loss: 83.103, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.642, smi_Loss: 29.030, itc_loss: 3.187, Base Lr: 4.76e-05
+2025-09-20 17:42:04 transreid.train INFO: Rank[1/2] Epoch[1] Iter[280/16236] Loss: 82.906, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.642, smi_Loss: 28.994, itc_loss: 3.163, Base Lr: 4.76e-05
+2025-09-20 17:42:37 transreid.train INFO: Rank[1/2] Epoch[1] Iter[300/16236] Loss: 82.680, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.642, smi_Loss: 28.957, itc_loss: 3.135, Base Lr: 4.76e-05
+2025-09-20 17:43:11 transreid.train INFO: Rank[1/2] Epoch[1] Iter[320/16236] Loss: 82.414, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.642, smi_Loss: 28.909, itc_loss: 3.103, Base Lr: 4.76e-05
+2025-09-20 17:43:44 transreid.train INFO: Rank[1/2] Epoch[1] Iter[340/16236] Loss: 82.154, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.642, smi_Loss: 28.857, itc_loss: 3.073, Base Lr: 4.76e-05
+22025-09-20 17:44:18 transreid.train INFO: Rank[0/2] Epoch[1] Iter[360/16236] Loss: 81.902, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.642, smi_Loss: 28.806, itc_loss: 3.044, Base Lr: 4.76e-052025-09-20 17:44:51 transreid.train INFO: Rank[1/2] Epoch[1] Iter[380/16236] Loss: 81.631, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.641, smi_Loss: 28.746, itc_loss: 3.014, Base Lr: 4.76e-05
+2025-09-20 17:45:24 transreid.train INFO: Rank[1/2] Epoch[1] Iter[400/16236] Loss: 81.344, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.641, smi_Loss: 28.678, itc_loss: 2.983, Base Lr: 4.76e-05
+2025-09-20 17:45:58 transreid.train INFO: Rank[1/2] Epoch[1] Iter[420/16236] Loss: 81.081, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.641, smi_Loss: 28.611, itc_loss: 2.957, Base Lr: 4.76e-05
+2025-09-20 17:46:31 transreid.train INFO: Rank[1/2] Epoch[1] Iter[440/16236] Loss: 80.855, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.641, smi_Loss: 28.554, itc_loss: 2.933, Base Lr: 4.76e-05
+2202025-09-20 17:47:05 transreid.train INFO: Rank[2/2] Epoch[1] Iter[460/16236] Loss: 80.670, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.641, smi_Loss: 28.507, itc_loss: 2.914, Base Lr: 4.76e-22025-09-20 17:47:38 transreid.train INFO: Rank[0/2] Epoch[1] Iter[480/16236] Loss: 80.440, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.641, smi_Loss: 28.442, itc_loss: 2.892, Base Lr: 4.76e-0522025-09-20 17:48:11 transreid.train INFO: Rank[0/2] Epoch[1] Iter[500/16236] Loss: 80.175, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.641, smi_Loss: 28.363, itc_loss: 2.868, Base Lr: 4.76e-0522025-09-20 17:48:45 transreid.train INFO: Rank[0/2] Epoch[1] Iter[520/16236] Loss: 79.857, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.641, smi_Loss: 28.263, itc_loss: 2.840, Base Lr: 4.76e-052022025-09-20 17:49:18 transreid.train INFO: Rank[2/2] Epoch[1] Iter[540/16236] Loss: 79.573, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.641, smi_Loss: 28.170, itc_loss: 2.816, Base Lr: 4.76e-22025-09-20 17:49:51 transreid.train INFO: Rank[0/2] Epoch[1] Iter[560/16236] Loss: 79.280, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.641, smi_Loss: 28.074, itc_loss: 2.791, Base Lr: 4.76e-052025-09-20 17:50:24 transreid.train INFO: Rank[1/2] Epoch[1] Iter[580/16236] Loss: 78.974, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.641, smi_Loss: 27.966, itc_loss: 2.767, Base Lr: 4.76e-05
+22025-09-20 17:50:56 transreid.train INFO: Rank[0/2] Epoch[1] Iter[600/16236] Loss: 78.739, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.641, smi_Loss: 27.884, itc_loss: 2.749, Base Lr: 4.76e-052022025-09-20 17:51:30 transreid.train INFO: Rank[2/2] Epoch[1] Iter[620/16236] Loss: 78.465, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.641, smi_Loss: 27.786, itc_loss: 2.727, Base Lr: 4.76e-2022025-09-20 17:52:03 transreid.train INFO: Rank[2/2] Epoch[1] Iter[640/16236] Loss: 78.151, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.641, smi_Loss: 27.670, itc_loss: 2.704, Base Lr: 4.76e-2202025-09-20 17:52:37 transreid.train INFO: Rank[2/2] Epoch[1] Iter[660/16236] Loss: 77.820, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.641, smi_Loss: 27.544, itc_loss: 2.680, Base Lr: 4.76e-2022025-09-20 17:53:11 transreid.train INFO: Rank[2/2] Epoch[1] Iter[680/16236] Loss: 77.502, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.641, smi_Loss: 27.422, itc_loss: 2.658, Base Lr: 4.76e-2025-09-20 17:53:45 transreid.train INFO: Rank[1/2] Epoch[1] Iter[700/16236] Loss: 77.173, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.641, smi_Loss: 27.295, itc_loss: 2.635, Base Lr: 4.76e-05
+2025-09-20 17:54:19 transreid.train INFO: Rank[1/2] Epoch[1] Iter[720/16236] Loss: 76.891, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.641, smi_Loss: 27.184, itc_loss: 2.616, Base Lr: 4.76e-05
+2202025-09-20 17:54:52 transreid.train INFO: Rank[2/2] Epoch[1] Iter[740/16236] Loss: 76.547, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.641, smi_Loss: 27.042, itc_loss: 2.594, Base Lr: 4.76e-2025-09-20 17:55:26 transreid.train INFO: Rank[1/2] Epoch[1] Iter[760/16236] Loss: 76.221, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.641, smi_Loss: 26.907, itc_loss: 2.573, Base Lr: 4.76e-05
+2025-09-20 17:55:59 transreid.train INFO: Rank[1/2] Epoch[1] Iter[780/16236] Loss: 75.874, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.641, smi_Loss: 26.760, itc_loss: 2.552, Base Lr: 4.76e-05
+2022025-09-20 17:56:33 transreid.train INFO: Rank[2/2] Epoch[1] Iter[800/16236] Loss: 75.518, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.641, smi_Loss: 26.608, itc_loss: 2.531, Base Lr: 4.76e-2025-09-20 17:57:06 transreid.train INFO: Rank[1/2] Epoch[1] Iter[820/16236] Loss: 75.099, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.641, smi_Loss: 26.425, itc_loss: 2.507, Base Lr: 4.76e-05
+22025-09-20 17:57:40 transreid.train INFO: Rank[0/2] Epoch[1] Iter[840/16236] Loss: 74.703, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.641, smi_Loss: 26.250, itc_loss: 2.485, Base Lr: 4.76e-052025-09-20 17:58:14 transreid.train INFO: Rank[1/2] Epoch[1] Iter[860/16236] Loss: 74.265, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.641, smi_Loss: 26.054, itc_loss: 2.461, Base Lr: 4.76e-05
+2202025-09-20 17:58:47 transreid.train INFO: Rank[2/2] Epoch[1] Iter[880/16236] Loss: 73.832, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.640, smi_Loss: 25.859, itc_loss: 2.438, Base Lr: 4.76e-2202025-09-20 17:59:21 transreid.train INFO: Rank[2/2] Epoch[1] Iter[900/16236] Loss: 73.395, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.640, smi_Loss: 25.664, itc_loss: 2.414, Base Lr: 4.76e-2025-09-20 17:59:54 transreid.train INFO: Rank[1/2] Epoch[1] Iter[920/16236] Loss: 72.974, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.640, smi_Loss: 25.474, itc_loss: 2.391, Base Lr: 4.76e-05
+2022025-09-20 18:00:27 transreid.train INFO: Rank[2/2] Epoch[1] Iter[940/16236] Loss: 72.566, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.640, smi_Loss: 25.290, itc_loss: 2.369, Base Lr: 4.76e-22025-09-20 18:01:01 transreid.train INFO: Rank[0/2] Epoch[1] Iter[960/16236] Loss: 72.167, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.640, smi_Loss: 25.109, itc_loss: 2.348, Base Lr: 4.76e-0522025-09-20 18:01:35 transreid.train INFO: Rank[0/2] Epoch[1] Iter[980/16236] Loss: 71.761, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.640, smi_Loss: 24.924, itc_loss: 2.326, Base Lr: 4.76e-05
+5

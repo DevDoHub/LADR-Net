@@ -28,8 +28,8 @@ DATASETS:
 
 DATALOADER:
   SAMPLER: 'softmax_triplet'
-  NUM_INSTANCE: 2  # 每个identity的实例数，数据并行时可以增加
-  NUM_WORKERS: 16   # 增加数据加载工作进程
+  NUM_INSTANCE: 1
+  NUM_WORKERS: 75
 
 SOLVER:
   OPTIMIZER_NAME: 'SGD'

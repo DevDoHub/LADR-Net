@@ -26,11 +26,12 @@ def main():
     print("启动数据并行训练...")
     print("配置信息:")
     print(f"  - PyTorch版本: {torch.version.__version__}")  # 1.7.1+cu110
-    gpu_count = torch.cuda.device_count()
+    # gpu_count = torch.cuda.device_count()
+    gpu_count = 3  # 手动设置
     print(f"可用GPU数量: {gpu_count}") # 2个4090
-    for i in range(gpu_count):
-        gpu_name = torch.cuda.get_device_name(i)
-        print(f"GPU {i} 型号: {gpu_name}")
+    # for i in range(gpu_count):
+    #     gpu_name = torch.cuda.get_device_name(i)
+    #     print(f"GPU {i} 型号: {gpu_name}")
     print("  - 训练方式: 数据并行 (DistributedDataParallel)")
     print("  - 后端: NCCL")
     print("  - 启动方式: torch.distributed.launch (适配PyTorch 1.7.1)")
@@ -60,7 +61,8 @@ def main():
     try:
         # 设置环境变量
         env = os.environ.copy()
-        env['CUDA_VISIBLE_DEVICES'] = '0,1'  # 使用两个GPU
+        # env['CUDA_VISIBLE_DEVICES'] = ','.join([str(i) for i in range(gpu_count)])
+        env['CUDA_VISIBLE_DEVICES'] = '0,1,2'  # 手动设置
         
         # 创建输出目录
         output_dir = './log/sda/swin_base_data_parallel'
