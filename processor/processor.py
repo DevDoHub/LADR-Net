@@ -23,6 +23,98 @@ def reduce_tensor(tensor, world_size):
     rt /= world_size
     return rt
 
+
+def add_parameter_hooks(model):
+    """
+    为模型参数添加钩子，确保所有参数都有梯度
+    """
+    hooks = []
+    
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            # 使用更温和的方式确保参数参与计算
+            def make_hook(param_name):
+                def hook_fn(grad):
+                    if grad is None:
+                        # 如果梯度为None，创建一个很小的梯度
+                        return torch.zeros_like(param) + 1e-12
+                    elif grad.abs().sum() == 0:
+                        # 如果梯度全为0，添加很小的扰动
+                        return grad + 1e-12 * torch.randn_like(grad)
+                    return grad
+                return hook_fn
+            
+            hook = param.register_hook(make_hook(name))
+            hooks.append((name, hook))
+    
+    return hooks
+
+
+def remove_parameter_hooks(hooks):
+    """
+    移除参数钩子
+    """
+    for name, hook in hooks:
+        hook.remove()
+
+
+def check_unused_parameters(model, logger):
+    """
+    检查未使用的参数
+    """
+    # 支持 model 为 DistributedDataParallel 的情况
+    core_model = model.module if hasattr(model, 'module') else model
+
+    unused_params = []
+    zero_grad_params = []
+    
+    for name, param in core_model.named_parameters():
+        if param.requires_grad:
+            if param.grad is None:
+                unused_params.append(name)
+            elif param.grad.abs().sum().item() == 0:
+                zero_grad_params.append(name)
+    
+    if unused_params:
+        logger.warning(f"参数没有梯度: {len(unused_params)} 个参数")
+        # 只打印前5个，避免日志过长
+        if len(unused_params) <= 5:
+            logger.warning(f"详细列表: {unused_params}")
+        else:
+            logger.warning(f"前5个: {unused_params[:5]} ... (共{len(unused_params)}个)")
+    
+    if zero_grad_params:
+        logger.warning(f"参数梯度为零: {len(zero_grad_params)} 个参数")
+        if len(zero_grad_params) <= 5:
+            logger.warning(f"详细列表: {zero_grad_params}")
+        else:
+            logger.warning(f"前5个: {zero_grad_params[:5]} ... (共{len(zero_grad_params)}个)")
+    
+    return len(unused_params), len(zero_grad_params)
+
+# 在模型定义中的适当位置添加
+def freeze_unnecessary_params(model):
+    # 冻结文本编码器的特定层
+    # 未使用的参数: ['module.text_encoder.cls.predictions.bias', 'module.text_encoder.cls.predictions.transform.dense.weight', 'module.text_encoder.cls.predictions.transform.dense.bias', 'module.text_encoder.cls.predictions.transform.LayerNorm.weight', 'module.text_encoder.cls.predictions.transform.LayerNorm.bias', 'module.base.norm0.weight', 'module.base.norm0.bias', 'module.base.norm1.weight', 'module.base.norm1.bias', 'module.base.norm2.weight', 'module.base.norm2.bias', 'module.base.semantic_embed_w.0.weight', 'module.base.semantic_embed_w.0.bias', 'module.base.semantic_embed_w.1.weight', 'module.base.semantic_embed_w.1.bias', 'module.base.semantic_embed_w.2.weight', 'module.base.semantic_embed_w.2.bias', 'module.base.semantic_embed_w.3.weight', 'module.base.semantic_embed_w.3.bias', 'module.base.semantic_embed_b.0.weight', 'module.base.semantic_embed_b.0.bias', 'module.base.semantic_embed_b.1.weight', 'module.base.semantic_embed_b.1.bias', 'module.base.semantic_embed_b.2.weight', 'module.base.semantic_embed_b.2.bias', 'module.base.semantic_embed_b.3.weight', 'module.base.semantic_embed_b.3.bias', 'module.bottleneck.weight', 'module.bottleneck.bias', 'module.fusion_feat_bn.weight', 'module.fusion_feat_bn.bias', 'module.feat_bn.weight', 'module.feat_bn.bias', 'module.vision_proj.0.weight', 'module.vision_proj.0.bias', 'module.vision_proj.2.weight', 'module.vision_proj.2.bias', 'module.text_proj.0.weight', 'module.text_proj.0.bias', 'module.text_proj.2.weight', 'module.text_proj.2.bias']
+    patterns = [
+        'text_encoder.cls.predictions',
+        'base.norm',
+        'base.semantic_embed_w',
+        'base.semantic_embed_b',
+        'bottleneck',
+        'fusion_feat_bn',
+        'feat_bn',
+        'vision_proj',
+        'text_proj'
+    ]
+    for name, param in model.named_parameters():
+        for p in patterns:
+            if p in name:
+                param.requires_grad = False
+    
+    return model
+
+
 def do_train(cfg,
              model,
              center_criterion,
@@ -50,7 +142,9 @@ def do_train(cfg,
         world_size = dist.get_world_size()
         logger.info(f'World size: {world_size}')
 
+    model = freeze_unnecessary_params(model)
     model.to(local_rank)
+    param_hooks = None
 
     # 如果使用分布式训练，包装模型
     if torch.cuda.device_count() > 1 and cfg.MODEL.DIST_TRAIN:
@@ -66,6 +160,10 @@ def do_train(cfg,
             broadcast_buffers=True,
             gradient_as_bucket_view=True   # 可以提高性能
         )
+        # param_hooks = add_parameter_hooks(model)
+        # logger.info(f"Added hooks to {len(param_hooks)} parameters")
+
+    # model = model.module if hasattr(model, 'module') else model
 
     # 初始化计量器
     loss_meter = AverageMeter()
@@ -116,7 +214,7 @@ def do_train(cfg,
                     target, text_embeds_s, text_score, target_cam, epoch,
                     local_feat_all, loss_itm, loss_itc  # 添加之前未使用的输出
                 )
-                
+
                 # 移除之前的手动正则化，因为现在损失函数会处理所有输出
                 # if local_feat_all is not None and torch.is_tensor(local_feat_all):
                 #     regularization_loss = (
@@ -129,6 +227,12 @@ def do_train(cfg,
                 # 注意：loss_itm 和 loss_itc 现在已经在损失函数内部处理
                 # 移除这行重复添加: loss += loss_itm*10 + loss_itc*6
             scaler.scale(loss).backward()
+
+            # if n_iter % (log_period * 5) == 0:
+            unused_count, zero_grad_count = check_unused_parameters(model, logger)
+            if unused_count > 0 or zero_grad_count > 0:
+                logger.warning(f"Epoch {epoch}, Iter {n_iter}: {unused_count} unused, {zero_grad_count} zero-grad parameters")
+
 
             scaler.step(optimizer)
             scaler.update()
@@ -261,6 +365,11 @@ def do_train(cfg,
                     logger.info("Rank-5: {:.1f}".format(t2i_Rank5))
                     logger.info("Rank-10: {:.1f}".format(t2i_Rank10))
                 torch.cuda.empty_cache()
+
+    # 训练结束后移除所有钩子
+    if param_hooks:
+        logger.info("Removing parameter hooks...")
+        remove_parameter_hooks(param_hooks)
 
 def do_inference(cfg,
                  model,

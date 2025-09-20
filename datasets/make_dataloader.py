@@ -110,7 +110,8 @@ def make_dataloader(cfg):
         if cfg.MODEL.DIST_TRAIN:
             logger.info('DIST_TRAIN START USE RandomIdentitySampler_DDP')
             mini_batch_size = cfg.SOLVER.IMS_PER_BATCH // dist.get_world_size()
-            data_sampler = RandomIdentitySampler_DDP(dataset.train, cfg.SOLVER.IMS_PER_BATCH, cfg.DATALOADER.NUM_INSTANCE)
+            print('每个GPU的batch size:', mini_batch_size)
+            data_sampler = RandomIdentitySampler_DDP(dataset.train, mini_batch_size, cfg.DATALOADER.NUM_INSTANCE)
             train_loader = DataLoader(
                 train_set,
                 batch_size=mini_batch_size,

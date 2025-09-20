@@ -40,7 +40,7 @@ SOLVER:
   WARMUP_METHOD: 'cosine'
   LARGE_FC_LR: False
   CHECKPOINT_PERIOD: 5
-  LOG_PERIOD: 5      # 更频繁的日志输出
+  LOG_PERIOD: 20      # 更频繁的日志输出
   EVAL_PERIOD: 5
   WEIGHT_DECAY: 1e-4
   WEIGHT_DECAY_BIAS: 1e-4

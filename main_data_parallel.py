@@ -50,7 +50,8 @@ def main():
         'MODEL.PRETRAIN_PATH', "'./checkpoint_tea.pth'",
         'OUTPUT_DIR', "'./log/sda/swin_base_data_parallel'",
         'MODEL.SEMANTIC_WEIGHT', '0.2',
-        'SOLVER.IMS_PER_BATCH', '64',     # 总batch size (每个GPU 32)
+        'SOLVER.IMS_PER_BATCH', '50',
+        'TEST.IMS_PER_BATCH', '50',
     ]
 
     print(f"执行命令: {' '.join(cmd)}")
