@@ -180,6 +180,12 @@ def do_train(cfg,
 
     # 训练循环
     for epoch in range(1, epochs + 1):
+        # 对分布式采样器设置 epoch，保证不同 epoch 的随机性 & 各 rank 同步随机序列
+        if cfg.MODEL.DIST_TRAIN and hasattr(train_loader, 'sampler') and hasattr(train_loader.sampler, 'set_epoch'):
+            try:
+                train_loader.sampler.set_epoch(epoch)
+            except Exception as e:
+                logger.warning(f"设置 sampler epoch 失败: {e}")
         start_time = time.time()
         loss_meter.reset()
         smi_meter.reset()
@@ -245,13 +251,9 @@ def do_train(cfg,
             if isinstance(score, list):
                 acc = (score[0].max(1)[1] == target).float().mean()
                 acc_caption = (text_score.max(1)[1] == target).float().mean()
-                acc_bio = (f_logits.max(1)[1] == target).float().mean()
-                acc_clot = (c_logits.max(1)[1] == target).float().mean()
             else:
                 acc = (score.max(1)[1] == target).float().mean()
                 acc_caption = (text_score.max(1)[1] == target).float().mean()
-                acc_bio = (f_logits.max(1)[1] == target).float().mean()
-                acc_clot = (c_logits.max(1)[1] == target).float().mean()
 
             # 同步损失值用于准确的日志记录
             if cfg.MODEL.DIST_TRAIN:
@@ -278,26 +280,40 @@ def do_train(cfg,
                 itc_meter.update(loss_itc.item(), img.shape[0])
                 itm_meter.update(loss_itm, 1)
 
-            acc_meter.update(acc, 1)
-            acc_text.update(acc_caption, 1)
+            # 使用 batch 大小作为权重进行加权平均，使统计更准确
+            batch_size = img.size(0)
+            acc_meter.update(acc.item(), batch_size)
+            acc_text.update(acc_caption.item(), batch_size)
             # acc_clot_meter.update(acc_clot, 1)
 
             torch.cuda.synchronize()
-            if cfg.MODEL.DIST_TRAIN:
-                # 让每个进程都输出日志，添加rank标识
-                if (n_iter + 1) % log_period == 0:
-                    base_lr = scheduler._get_lr(epoch)[0] if cfg.SOLVER.WARMUP_METHOD == 'cosine' else scheduler.get_lr()[0]
+            if (n_iter + 1) % log_period == 0:
+                base_lr = scheduler._get_lr(epoch)[0] if cfg.SOLVER.WARMUP_METHOD == 'cosine' else scheduler.get_lr()[0]
+                
+                if epoch == 1 and (n_iter + 1) == log_period:
+                    # Debug：打印前几个 pid 以验证不同 rank 取样是否不同（只打印一次即可）
+                    # logger.info(f"[DEBUG] sample vid head: {vid[:8].tolist()}")
+                    rank = dist.get_rank() 
+                    u = vid.unique().tolist()
+                    logger.info(f"[DEBUG][Rank {rank}] first batch unique pids ({len(u)}): {u[:12]}")
+
+                if cfg.MODEL.DIST_TRAIN:
                     rank = dist.get_rank()
-                    world_size = dist.get_world_size()
-                    logger.info("Rank[{}/{}] Epoch[{}] Iter[{}/{}] Loss: {:.3f}, Acc: {:.3f}, Acc_text: {:.3f}, itm_loss: {:.3f}, smi_Loss: {:.3f}, itc_loss: {:.3f}, Base Lr: {:.2e}"
-                                .format(rank, world_size-1, epoch, (n_iter + 1), len(train_loader), 
-                                       loss_meter.avg, acc_meter.avg, acc_text.avg, itm_meter.avg, 
-                                       smi_meter.avg, itc_meter.avg, base_lr))
-            else:
-                if (n_iter + 1) % log_period == 0:
-                    base_lr = scheduler._get_lr(epoch)[0] if cfg.SOLVER.WARMUP_METHOD == 'cosine' else scheduler.get_lr()[0]
-                    logger.info("Epoch[{}] Iter[{}/{}] Loss: {:.3f}, Acc: {:.3f}, Acc_text: {:.3f}, itm_loss: {:.3f}, smi_Loss: {:.3f}, itc_loss: {:.3f},  Base Lr: {:.2e}"
-                                .format(epoch, (n_iter + 1), len(train_loader), loss_meter.avg, acc_meter.avg, acc_text.avg, itm_meter.avg,  smi_meter.avg, itc_meter.avg, base_lr))
+                    if rank == 0:  # 仅主进程打印以避免重复
+                        world_size = dist.get_world_size()
+                        logger.info(
+                            "Rank[{}/{}] Epoch[{}] Iter[{}/{}] Loss: {:.3f}, Acc: {:.3f}, Acc_text: {:.3f}, itm_loss: {:.3f}, smi_Loss: {:.3f}, itc_loss: {:.3f}, Base Lr: {:.2e}".format(
+                                rank, world_size-1, epoch, (n_iter + 1), len(train_loader),
+                                loss_meter.avg, acc_meter.avg, acc_text.avg, itm_meter.avg,
+                                smi_meter.avg, itc_meter.avg, base_lr
+                            )
+                        )
+                else:
+                    logger.info(
+                        "Epoch[{}] Iter[{}/{}] Loss: {:.3f}, Acc: {:.3f}, Acc_text: {:.3f}, itm_loss: {:.3f}, smi_Loss: {:.3f}, itc_loss: {:.3f},  Base Lr: {:.2e}".format(
+                            epoch, (n_iter + 1), len(train_loader), loss_meter.avg, acc_meter.avg, acc_text.avg, itm_meter.avg, smi_meter.avg, itc_meter.avg, base_lr
+                        )
+                    )
 
         end_time = time.time()
         time_per_batch = (end_time - start_time) / (n_iter_overall + 1)

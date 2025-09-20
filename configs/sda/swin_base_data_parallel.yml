@@ -5,7 +5,7 @@ MODEL:
   IF_WITH_CENTER: 'no'
   NAME: 'transformer'
   NO_MARGIN: True
-  DEVICE_ID: ('0,1')  # 多GPU设备
+  DEVICE_ID: ('0,1,2')  # 多GPU设备
   TRANSFORMER_TYPE: 'swin_base_patch4_window7_224'
   STRIDE_SIZE: [16, 16]
   FUSION_BRANCH: 'bio+clot'

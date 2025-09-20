@@ -109,9 +109,15 @@ def make_dataloader(cfg):
         logger.info(f'using {cfg.MODEL.DIST_TRAIN}')
         if cfg.MODEL.DIST_TRAIN:
             logger.info('DIST_TRAIN START USE RandomIdentitySampler_DDP')
-            mini_batch_size = cfg.SOLVER.IMS_PER_BATCH // dist.get_world_size()
-            print('每个GPU的batch size:', mini_batch_size)
-            data_sampler = RandomIdentitySampler_DDP(dataset.train, mini_batch_size, cfg.DATALOADER.NUM_INSTANCE)
+            # 这里修正：RandomIdentitySampler_DDP 设计上期望传入 "全局 batch size" (N*K)，内部再根据 world_size 计算每个 rank 的 mini_batch
+            # 原代码将已经除过 world_size 的 mini_batch_size 传入，导致在 sampler 内再次 / world_size，引发真实 per-rank batch 过小
+            global_batch_size = cfg.SOLVER.IMS_PER_BATCH
+            world_size = dist.get_world_size()
+            assert global_batch_size % world_size == 0, \
+                f"IMS_PER_BATCH({global_batch_size}) 不能被 world_size({world_size}) 整除"
+            mini_batch_size = global_batch_size // world_size
+            print('全局 batch size:', global_batch_size, '=> 每个GPU的 batch size:', mini_batch_size)
+            data_sampler = RandomIdentitySampler_DDP(dataset.train, global_batch_size, cfg.DATALOADER.NUM_INSTANCE)
             train_loader = DataLoader(
                 train_set,
                 batch_size=mini_batch_size,
