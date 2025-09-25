@@ -92,7 +92,7 @@ class ImageTextDataset(Dataset):
     def __init__(self, dataset, transform=None, is_train=True,text_length: int = 77,truncate: bool = True):
         self.dataset = dataset
         self.transform = transform
-        self.tokenizer = BertTokenizer.from_pretrained("bert-large-uncased")
+        self.tokenizer = BertTokenizer.from_pretrained("./bert-base-uncased1/models--google-bert--bert-base-uncased/snapshots/86b5e0934494bd15c9632b12f734a8a67f723594")
         # attr_file =  open(json_list, 'r', encoding='utf-8')
         # self.attr_dict = json.load(attr_file)
         self.text_length = cfg.MODEL.TEXT_LENGTH
@@ -254,7 +254,7 @@ class TextDataset(Dataset):
         # self.truncate = truncate
         self.text_length = cfg.MODEL.TEXT_LENGTH
         self.truncate = truncate
-        self.tokenizer = BertTokenizer.from_pretrained('bert-large-uncased')
+        self.tokenizer = BertTokenizer.from_pretrained('./bert-base-uncased1/models--google-bert--bert-base-uncased/snapshots/86b5e0934494bd15c9632b12f734a8a67f723594')
     def __len__(self):
         return len(self.caption_pids)
 

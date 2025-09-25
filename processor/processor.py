@@ -288,7 +288,7 @@ def do_train(cfg,
 
             torch.cuda.synchronize()
             if (n_iter + 1) % log_period == 0:
-                base_lr = scheduler._get_lr(epoch)[0] if cfg.SOLVER.WARMUP_METHOD == 'cosine' else scheduler.get_lr()[0]
+                base_lr = scheduler.get_lr()[0] if cfg.SOLVER.WARMUP_METHOD == 'cosine' else scheduler.get_lr()[0]
                 
                 if epoch == 1 and (n_iter + 1) == log_period:
                     # Debug：打印前几个 pid 以验证不同 rank 取样是否不同（只打印一次即可）

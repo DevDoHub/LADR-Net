@@ -1,0 +1,119 @@
+2025-09-25 23:09:31 transreid INFO: Single GPU training
+2025-09-25 23:09:34 transreid INFO: Running with config:
+DATALOADER:
+  NUM_INSTANCE: 1
+  NUM_WORKERS: 75
+  REMOVE_TAIL: 0
+  SAMPLER: softmax_triplet
+DATASETS:
+  NAMES: cuhkpedes
+  ROOT_DIR: ./data/
+  ROOT_TEST_DIR: ./data/cuhkpedes/reid_raw.json
+  ROOT_TRAIN_DIR: ../data
+  ROOT_VAL_DIR: ../data
+INPUT:
+  PADDING: 10
+  PIXEL_MEAN: [0.5, 0.5, 0.5]
+  PIXEL_STD: [0.5, 0.5, 0.5]
+  PROB: 0.5
+  RE_PROB: 0.5
+  SIZE_TEST: [384, 128]
+  SIZE_TRAIN: [384, 128]
+JSON_DIR: 
+MODEL:
+  ATT_DROP_RATE: 0.0
+  BIO_ID_LOSS_WEIGHT: 0.5
+  BIO_TRIPLET_LOSS_WEIGHT: 0.5
+  CLOT_ID_LOSS_WEIGHT: 0.5
+  CLOT_TRIPLET_LOSS_WEIGHT: 0.65
+  COS_LAYER: False
+  DEVICE: cuda
+  DEVICE_ID: 0,1,2
+  DEVIDE_LENGTH: 4
+  DIST_TRAIN: True
+  DROPOUT_RATE: 0.0
+  DROP_OUT: 0.0
+  DROP_PATH: 0.1
+  FEAT_DIM: 512
+  FUSION_BRANCH: bio+clot
+  GEM_POOLING: False
+  ID_LOSS_TYPE: softmax
+  ID_LOSS_WEIGHT: 1.0
+  IF_LABELSMOOTH: off
+  IF_WITH_CENTER: no
+  JPM: False
+  LAST_STRIDE: 1
+  METRIC_LOSS_TYPE: triplet
+  NAME: transformer
+  NECK: bnneck
+  NO_MARGIN: True
+  PRETRAIN_CHOICE: self
+  PRETRAIN_HW_RATIO: 2
+  PRETRAIN_PATH: ./checkpoint_tea.pth
+  REDUCE_FEAT_DIM: False
+  RE_ARRANGE: True
+  SEMANTIC_WEIGHT: 0.2
+  SHIFT_NUM: 5
+  SHUFFLE_GROUP: 2
+  SIE_CAMERA: False
+  SIE_COE: 3.0
+  SIE_VIEW: False
+  STEM_CONV: False
+  STRIDE_SIZE: [16, 16]
+  TEXT_LENGTH: 56
+  TRANSFORMER_TYPE: swin_base_patch4_window7_224
+  TRIPLET_LOSS_WEIGHT: 1.0
+OUTPUT_DIR: ./log/cuhkpedes/swin_base_data_parallel
+SOLVER:
+  BASE_LR: 1e-05
+  BIAS_LR_FACTOR: 2
+  CENTER_LOSS_WEIGHT: 0.0005
+  CENTER_LR: 0.5
+  CHECKPOINT_PERIOD: 5
+  COSINE_MARGIN: 0.5
+  COSINE_SCALE: 30
+  EVAL_PERIOD: 5
+  GAMMA: 0.1
+  IMS_PER_BATCH: 10
+  LARGE_FC_LR: True
+  LOG_PERIOD: 20
+  MARGIN: 0.3
+  MAX_EPOCHS: 100
+  MOMENTUM: 0.9
+  OPTIMIZER_NAME: Adam
+  SEED: 1234
+  STEPS: (40, 70)
+  TRP_L2: False
+  WARMUP_EPOCHS: 5
+  WARMUP_FACTOR: 0.01
+  WARMUP_METHOD: cosine
+  WEIGHT_DECAY: 4e-05
+  WEIGHT_DECAY_BIAS: 0.0
+TEST:
+  DIST_MAT: dist_mat.npy
+  EVAL: True
+  FEAT_NORM: yes
+  IMS_PER_BATCH: 32
+  NECK_FEAT: before
+  RE_RANKING: False
+  WEIGHT: 
+2025-09-25 23:09:35 transreid.check INFO: Dataset statistics:
+2025-09-25 23:09:35 transreid.check INFO:   ----------------------------------------------------------
+2025-09-25 23:09:35 transreid.check INFO:   subset   | # ids | # images | # caption ids | # caption 
+2025-09-25 23:09:35 transreid.check INFO:   ----------------------------------------------------------
+2025-09-25 23:09:35 transreid.check INFO:   train    | 11003 |    34054 |     11003 |     68126
+2025-09-25 23:09:35 transreid.check INFO:   test     |  1000 |     3074 |      1000 |      6156
+2025-09-25 23:09:35 transreid.check INFO:   val      |  1000 |     3078 |      1000 |      6158
+2025-09-25 23:09:35 transreid.check INFO:   ----------------------------------------------------------
+2025-09-25 23:09:35 transreid INFO: using 68126 images for training
+2025-09-25 23:09:35 transreid INFO: Creating model: transformer
+2025-09-25 23:09:39 transreid INFO: Total model parameters: 227194101
+2025-09-25 23:09:40 transreid INFO: ===========using cosine learning rate=======
+2025-09-25 23:09:40 transreid.train INFO: start training
+2025-09-25 23:09:40 transreid.train INFO: World size: 2
+2025-09-25 23:09:40 transreid.train INFO: Using 2 GPUs for training
+2025-09-25 23:09:40 transreid.train INFO: Using DistributedDataParallel for training
+2025-09-25 23:10:03 transreid.train INFO: [DEBUG][Rank 1] first batch unique pids (5): [911, 2347, 2417, 5135, 7579]
+2025-09-25 23:10:03 transreid.train INFO: Rank[1/1] Epoch[1] Iter[20/3405] Loss: 66.430, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.685, smi_Loss: 26.891, itc_loss: 1.656, Base Lr: 1.00e-06
+2025-09-25 23:10:16 transreid.train INFO: Rank[0/1] Epoch[1] Iter[40/3405] Loss: 65.770, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.668, smi_Loss: 26.608, itc_loss: 1.646, Base Lr: 1.00e-06
+2025-09-25 23:10:30 transreid.train INFO: Rank[0/1] Epoch[1] Iter[60/3405] Loss: 65.605, Acc: 0.000, Acc_text: 0.000, itm_loss: 0.662, smi_Loss: 26.563, itc_loss: 1.640, Base Lr: 1.00e-06

@@ -22,8 +22,8 @@ INPUT:
   PIXEL_STD: [0.5, 0.5, 0.5]
 
 DATASETS:
-  NAMES: ('sda')
-  ROOT_DIR: ('/hy-tmp/')
+  NAMES: ('cuhkpedes')
+  ROOT_DIR: ('./data/')
   ROOT_TEST_DIR: ('./data/cuhkpedes/reid_raw.json')
 
 DATALOADER:
@@ -54,4 +54,4 @@ TEST:
   NECK_FEAT: 'before'
   FEAT_NORM: 'yes'
 
-OUTPUT_DIR: './log/sda/swin_base_data_parallel'
+OUTPUT_DIR: './log/cuhkpedes/swin_base_data_parallel'

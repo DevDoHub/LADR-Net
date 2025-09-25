@@ -115,22 +115,22 @@ def make_loss(cfg, num_classes):    # modified by gu
                     # LOSS += loss_itc
 
                     # 3. f_logits 损失 (必须包含)
-                    if f_logits is not None:
-                        if isinstance(f_logits, list):
-                            F_LOGITS_LOSS = [F.cross_entropy(logit, target) for logit in f_logits]
-                            F_LOGITS_LOSS = sum(F_LOGITS_LOSS) / len(F_LOGITS_LOSS)
-                        else:
-                            F_LOGITS_LOSS = F.cross_entropy(f_logits, target)
-                        LOSS += 0.2 * F_LOGITS_LOSS
+                    # if f_logits is not None:
+                    #     if isinstance(f_logits, list):
+                    #         F_LOGITS_LOSS = [F.cross_entropy(logit, target) for logit in f_logits]
+                    #         F_LOGITS_LOSS = sum(F_LOGITS_LOSS) / len(F_LOGITS_LOSS)
+                    #     else:
+                    #         F_LOGITS_LOSS = F.cross_entropy(f_logits, target)
+                    #     LOSS += 0.2 * F_LOGITS_LOSS
 
-                    # 4. c_logits 损失 (必须包含)
-                    if c_logits is not None:
-                        if isinstance(c_logits, list):
-                            C_LOGITS_LOSS = [F.cross_entropy(logit, target) for logit in c_logits]
-                            C_LOGITS_LOSS = sum(C_LOGITS_LOSS) / len(C_LOGITS_LOSS)
-                        else:
-                            C_LOGITS_LOSS = F.cross_entropy(c_logits, target)
-                        LOSS += 0.2 * C_LOGITS_LOSS
+                    # # 4. c_logits 损失 (必须包含)
+                    # if c_logits is not None:
+                    #     if isinstance(c_logits, list):
+                    #         C_LOGITS_LOSS = [F.cross_entropy(logit, target) for logit in c_logits]
+                    #         C_LOGITS_LOSS = sum(C_LOGITS_LOSS) / len(C_LOGITS_LOSS)
+                    #     else:
+                    #         C_LOGITS_LOSS = F.cross_entropy(c_logits, target)
+                    #     LOSS += 0.2 * C_LOGITS_LOSS
                     
                     # 5. SMI 损失
                     smi_loss = compute_sdm(feat, text_embeds_s, target, 50)  
@@ -183,17 +183,17 @@ def make_loss(cfg, num_classes):    # modified by gu
                 #         LOSS +=  loss_weight * cfg.MODEL.BIO_TRIPLET_LOSS_WEIGHT * CLOT_ID_LOSS
 
                 # 6. 确保所有特征参与梯度计算（增加权重确保有效）
-                feature_regularization = (
-                    bio_f.pow(2).mean() * 1e-6 +  # 增加权重
-                    clot_f.pow(2).mean() * 1e-6    # 增加权重
-                )
-                LOSS += feature_regularization
+                # feature_regularization = (
+                #     bio_f.pow(2).mean() * 1e-6 +  # 增加权重
+                #     clot_f.pow(2).mean() * 1e-6    # 增加权重
+                # )
+                # LOSS += feature_regularization
                 # 确保所有输入参数都参与损失计算，防止DDP未使用参数错误
                 
                 # 7. 处理可选输入
-                if local_feat_all is not None:
-                    local_regularization = local_feat_all.pow(2).mean() * 1e-6  # 增加权重
-                    LOSS += local_regularization
+                # if local_feat_all is not None:
+                #     local_regularization = local_feat_all.pow(2).mean() * 1e-6  # 增加权重
+                #     LOSS += local_regularization
                 
                 # 处理 loss_itm 和 loss_itc（这些通常已经是计算好的损失值）
                 if loss_itm is not None:
