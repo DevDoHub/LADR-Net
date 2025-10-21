@@ -52,7 +52,7 @@ def main():
         'OUTPUT_DIR', "'./log/cuhkpedes/swin_base_data_parallel'",
         'MODEL.SEMANTIC_WEIGHT', '0.2',
         'SOLVER.BASE_LR', '0.00001',
-        'SOLVER.IMS_PER_BATCH', '10',
+        'SOLVER.IMS_PER_BATCH', '64',
         'TEST.IMS_PER_BATCH', '32',
     ]
 

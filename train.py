@@ -63,7 +63,7 @@ if __name__ == '__main__':
     # 创建模型
     logger.info("Creating model: {}".format(cfg.MODEL.NAME))
     model = make_model(cfg, num_class=num_classes, camera_num=0, view_num = 0, semantic_weight = cfg.MODEL.SEMANTIC_WEIGHT)
-
+    model.load_param('/root/SOLIDER-REID-PRO/transformer_30.pth')
     ## 记录一些信息
     # 计算模型的参数量
     total_params = sum(p.numel() for p in model.parameters())

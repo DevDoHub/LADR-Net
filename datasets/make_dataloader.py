@@ -13,6 +13,7 @@ from .rstpreid import RSTPReid
 from .cuhkpedes import cuhkpedes
 from .msmt17 import MSMT17
 from .cuhk03 import Cuhk03
+from .luperson import LUPerson
 from .sampler_ddp import RandomIdentitySampler_DDP
 import torch.distributed as dist
 from .mm import MM
@@ -25,7 +26,8 @@ __factory = {
     'real2': Real2,
     'RSTPReid': RSTPReid,
     "cuhkpedes":cuhkpedes,
-    'sda':SDA
+    'sda':SDA,
+    'LUPerson':LUPerson
 }
 
 logger = logging.getLogger("dataloading...")
@@ -89,7 +91,7 @@ def make_dataloader(cfg):
     if cfg.DATASETS.NAMES == 'ourapi':
         # dataset = OURAPI(root_train=cfg.DATASETS.ROOT_TRAIN_DIR, root_val=cfg.DATASETS.ROOT_VAL_DIR, config=cfg)
         pass
-    elif cfg.DATASETS.NAMES == 'sda':
+    elif cfg.DATASETS.NAMES == 'sda'  or cfg.DATASETS.NAMES == 'LUPerson':
         logger.info('=> sda dataset loaded')
         dataset = __factory[cfg.DATASETS.NAMES](root=cfg.DATASETS.ROOT_DIR, test_path=cfg.DATASETS.ROOT_TEST_DIR)
     else:

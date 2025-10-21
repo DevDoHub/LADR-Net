@@ -333,7 +333,7 @@ def do_train(cfg,
             logger.info("Epoch {} done. Time per epoch: {:.3f}[s] Speed: {:.1f}[samples/s]"
                     .format(epoch, time_per_batch * (n_iter_overall + 1), train_loader.batch_size / time_per_batch))
 
-        if epoch % eval_period == 0:
+        if epoch % 10 == 0:
             if cfg.MODEL.DIST_TRAIN:
                 # 每个进程都保存模型（但使用不同文件名避免冲突）
                 rank = dist.get_rank()
@@ -344,7 +344,7 @@ def do_train(cfg,
                 torch.save(model.state_dict(),
                            os.path.join(cfg.OUTPUT_DIR, cfg.MODEL.NAME + '_{}.pth'.format(epoch)))
 
-        if epoch % eval_period == 0 or epoch < 5:
+        if epoch % eval_period == 0:
             if cfg.MODEL.DIST_TRAIN:
                 # 只让主进程进行验证，避免重复计算
                 rank = dist.get_rank()

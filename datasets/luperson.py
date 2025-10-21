@@ -10,49 +10,25 @@ import json
 import os.path as osp
 
 
-class SDA(BaseImageDataset):
-    """
-    RSTPReid
+class LUPerson(BaseImageDataset):
 
-    Reference:
-    DSSL: Deep Surroundings-person Separation Learning for Text-based Person Retrieval MM 21
-
-    URL: http://arxiv.org/abs/2109.05534
-
-    Dataset statistics:
-    # identities: 4101 
-    """
-    dataset_dir = 'sda'
+    dataset_dir = 'LUPerson'
 
     def __init__(self, root='', test_path = '', verbose=True):
-        super(SDA, self).__init__()
+        super(LUPerson, self).__init__()
         self.dataset_dir = osp.join(root, self.dataset_dir)
-        self.img_dir = op.join(self.dataset_dir)
-        self.img_test_dir = op.join('./data/cuhkpedes/imgs')
+        self.img_dir = op.join(self.dataset_dir, 'lup_lmdb')
+        self.img_test_dir = op.join('./data/cuhkpedes/imgs') 
 
-        train_jsons = [
-        'sda_0_5000.json',
-        'sda_5000_10000.json',
-        'sda_10000_15000.json',
-        'sda_15000_20000.json',
-        'sda_20000_25000.json',
-        'sda_25000_30000.json',
-        'sda_30000_35000.json',
-        'sda_35000_40000.json',
-        'sda_40000_45000.json',
-        'sda_45000_50000.json',
-        'sda_50000_55000.json',
-        'sda_55000_60000.json',
-        'sda_60000_64000.json',
-        'sda_64000_70000.json'
-        ]
+        self.anno_path = op.join('./data/cuhkpedes', 'reid_raw.json')
+        self._check_before_run()
 
-        self.anno_path = [op.join(self.dataset_dir, 'sda', fname) for fname in train_jsons]
+        self.anno_path_train = './data/luperson/merged_data_simple.json'
         self._check_before_run()
         
         self.anno_test = test_path
 
-        self.train_annos, self._, self._ = self._split_anno(self.anno_path)
+        self.train_annos, self._, self._ = self._split_anno(self.anno_path_train)
         self._, self.test_annos, self.val_annos = self._split_anno(self.anno_test)
 
 
@@ -62,7 +38,7 @@ class SDA(BaseImageDataset):
         self.val, self.val_id_container = self._process_anno(self.val_annos)
 
         if verbose:
-            print("=> sda loaded")
+            print("=> LUPerson loaded")
             self.print_dataset_statistics(self.train, self.test, self.val)
 
 
@@ -79,16 +55,20 @@ class SDA(BaseImageDataset):
                 annos.extend(read_json(path))
         else:
             annos = read_json(anno_path)
-        for anno in annos:
-            try:
-                if anno['split'] == 'test':
-                    test_annos.append(anno)
-                elif anno['split'] == 'val':
-                    val_annos.append(anno)
-                elif anno['split'] == 'train':
-                    continue
-            except:
-                train_annos.append(anno)
+        try:
+            for key, anno in annos.items():
+                train_annos.append({key: anno})
+        except:
+            for anno in annos:
+                try:
+                    if anno['split'] == 'test':
+                        test_annos.append(anno)
+                    elif anno['split'] == 'val':
+                        val_annos.append(anno)
+                    elif anno['split'] == 'train':
+                        continue
+                except:
+                    train_annos.append(anno)
         return train_annos, test_annos, val_annos   
 
     def _check_before_run(self):
@@ -112,16 +92,18 @@ class SDA(BaseImageDataset):
             dataset = []
             image_id = 0
             for anno in annos:
-                pid = int(anno['image_id']) # make pid begin from 0
+                inner_anno = list(anno.values())[0]
+                pid = int(inner_anno['id']-1) # make pid begin from 0
                 pid_container.add(pid)
-                img_path = op.join(self.img_dir, anno['image'])
-                caption = anno['caption'] # caption list
-                # for caption in captions:
-                dataset.append((pid, image_id, img_path, caption))
+                img_path = op.join(self.img_dir, list(anno.keys())[0])  # 使用外层字典的键作为图片路径
+                captions = inner_anno['captain'] # caption list
+                for caption in captions:
+                    dataset.append((pid, image_id, img_path, caption))
                 image_id += 1
             for idx, pid in enumerate(pid_container):
                 # check pid begin from 0 and no break
                 assert idx == pid, f"idx: {idx} and pid: {pid} are not match"
+            print('----------------------------------'+str(len(dataset)))
             return dataset, pid_container
         else:
             dataset = {}

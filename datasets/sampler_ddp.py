@@ -111,7 +111,8 @@ class RandomIdentitySampler_DDP(Sampler):
     """
     Optimized version of RandomIdentitySampler for DDP training.
     Randomly sample N identities, then for each identity,
-    randomly sample K instances, therefore batch size is N*K.
+    randomly sample K instances (batch size = N*K).
+    Ensures all samples are used within one epoch.
     """
 
     def __init__(self, data_source, batch_size, num_instances):
@@ -119,73 +120,65 @@ class RandomIdentitySampler_DDP(Sampler):
         self.batch_size = batch_size
         self.num_instances = num_instances
         
-        # Get world size and rank
+        # DDP environment
         self.world_size = dist.get_world_size()
         self.rank = dist.get_rank()
         
-        # Calculate per-GPU batch size
+        # Per-GPU settings
         self.mini_batch_size = self.batch_size // self.world_size
         self.num_pids_per_batch = self.mini_batch_size // self.num_instances
         
-        # Build index dictionary
+        # Build pid -> index mapping
         self.index_dic = defaultdict(list)
         for index, (_, pid, _, _) in enumerate(self.data_source):
             self.index_dic[pid].append(index)
-        
         self.pids = list(self.index_dic.keys())
-        
-        # Precompute the total number of batches
-        total_batches = len(self.pids) // self.num_pids_per_batch
-        self.batches_per_rank = total_batches // self.world_size
-        
-        # Calculate length for this rank
-        self.length = self.batches_per_rank * self.mini_batch_size
-        
-        # For reproducibility
+
+        # Total number of samples per epoch (approx)
+        self.length = len(self.data_source) // self.world_size
         self.epoch = 0
-        
+
     def set_epoch(self, epoch):
-        """Set the epoch for reproducibility."""
+        """Set epoch for deterministic shuffling across workers."""
         self.epoch = epoch
-        
+
     def __iter__(self):
-        # Use epoch and rank for deterministic randomness
+        # Deterministic seed per epoch
         seed = self.epoch * 1000 + self.rank
         random.seed(seed)
         np.random.seed(seed)
-        
-        # Create a list of all pids and shuffle
+
+        # Shuffle all pids once per epoch
         all_pids = self.pids.copy()
         random.shuffle(all_pids)
-        
-        # Calculate how many batches each rank should process
-        total_batches = len(all_pids) // self.num_pids_per_batch
-        batches_per_rank = total_batches // self.world_size
-        
-        # Determine the start and end indices for this rank
-        start_batch = self.rank * batches_per_rank
-        end_batch = start_batch + batches_per_rank
-        
-        # Generate indices for this rank
+
+        # Pad to make total divisible by (num_pids_per_batch * world_size)
+        total_pids = len(all_pids)
+        required_pids = int(np.ceil(total_pids / (self.num_pids_per_batch * self.world_size))) \
+                        * self.num_pids_per_batch * self.world_size
+        if required_pids > total_pids:
+            extra_pids = np.random.choice(all_pids, required_pids - total_pids, replace=True).tolist()
+            all_pids += extra_pids
+        # Split pids into global batches
+        total_batches = required_pids // self.num_pids_per_batch
+
+        # Assign batches to this rank
         indices = []
-        for batch_idx in range(start_batch, end_batch):
-            # Get the pids for this batch
+        for batch_idx in range(self.rank, total_batches, self.world_size):
             start_pid = batch_idx * self.num_pids_per_batch
             end_pid = start_pid + self.num_pids_per_batch
             batch_pids = all_pids[start_pid:end_pid]
-            
-            # For each pid, sample instances
+
+            # Sample instances per pid
             for pid in batch_pids:
                 pid_indices = self.index_dic[pid]
                 if len(pid_indices) < self.num_instances:
-                    # Sample with replacement if not enough instances
                     selected = np.random.choice(pid_indices, self.num_instances, replace=True)
                 else:
-                    # Sample without replacement if enough instances
                     selected = random.sample(pid_indices, self.num_instances)
                 indices.extend(selected)
-        
+
         return iter(indices)
-    
+
     def __len__(self):
         return self.length

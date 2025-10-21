@@ -44,7 +44,7 @@ def create_scheduler(cfg, optimizer):
         milestones=(20, 50),
         gamma=0.1,
         warmup_factor=0.1,
-        warmup_epochs=5,
+        warmup_epochs=cfg.SOLVER.WARMUP_EPOCHS,
         warmup_method='linear',
         total_epochs=100,
         mode='cosine',
