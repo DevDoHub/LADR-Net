@@ -140,7 +140,12 @@ def do_train(cfg,
     if cfg.MODEL.DIST_TRAIN:
         # 获取全局进程数和工作组大小
         world_size = dist.get_world_size()
-        logger.info(f'World size: {world_size}')
+        rank = dist.get_rank()
+        if rank == 0:  # 只在卡0上打印
+            logger.info('start training')
+            logger.info(f'World size: {world_size}')
+    else:
+        logger.info('start training')
 
     model = freeze_unnecessary_params(model)
     model.to(local_rank)
@@ -148,8 +153,10 @@ def do_train(cfg,
 
     # 如果使用分布式训练，包装模型
     if torch.cuda.device_count() > 1 and cfg.MODEL.DIST_TRAIN:
-        logger.info('Using {} GPUs for training'.format(torch.cuda.device_count()))
-        logger.info('Using DistributedDataParallel for training')
+        rank = dist.get_rank()
+        if rank == 0:  # 只在卡0上打印
+            logger.info('Using {} GPUs for training'.format(torch.cuda.device_count()))
+            logger.info('Using DistributedDataParallel for training')
         
         # 使用更优化的配置
         model = torch.nn.parallel.DistributedDataParallel(
@@ -161,7 +168,8 @@ def do_train(cfg,
             gradient_as_bucket_view=True   # 可以提高性能
         )
         # param_hooks = add_parameter_hooks(model)
-        # logger.info(f"Added hooks to {len(param_hooks)} parameters")
+        # if rank == 0:
+        #     logger.info(f"Added hooks to {len(param_hooks)} parameters")
 
     # model = model.module if hasattr(model, 'module') else model
 
@@ -185,7 +193,9 @@ def do_train(cfg,
             try:
                 train_loader.sampler.set_epoch(epoch)
             except Exception as e:
-                logger.warning(f"设置 sampler epoch 失败: {e}")
+                rank = dist.get_rank()
+                if rank == 0:
+                    logger.warning(f"设置 sampler epoch 失败: {e}")
         start_time = time.time()
         loss_meter.reset()
         smi_meter.reset()
@@ -235,9 +245,16 @@ def do_train(cfg,
             scaler.scale(loss).backward()
 
             # if n_iter % (log_period * 5) == 0:
-            unused_count, zero_grad_count = check_unused_parameters(model, logger)
-            if unused_count > 0 or zero_grad_count > 0:
-                logger.warning(f"Epoch {epoch}, Iter {n_iter}: {unused_count} unused, {zero_grad_count} zero-grad parameters")
+            if cfg.MODEL.DIST_TRAIN:
+                rank = dist.get_rank()
+                if rank == 0:  # 只在卡0上检查并打印
+                    unused_count, zero_grad_count = check_unused_parameters(model, logger)
+                    if unused_count > 0 or zero_grad_count > 0:
+                        logger.warning(f"Epoch {epoch}, Iter {n_iter}: {unused_count} unused, {zero_grad_count} zero-grad parameters")
+            else:
+                unused_count, zero_grad_count = check_unused_parameters(model, logger)
+                if unused_count > 0 or zero_grad_count > 0:
+                    logger.warning(f"Epoch {epoch}, Iter {n_iter}: {unused_count} unused, {zero_grad_count} zero-grad parameters")
 
 
             scaler.step(optimizer)
@@ -294,20 +311,26 @@ def do_train(cfg,
                     # Debug：打印前几个 pid 以验证不同 rank 取样是否不同（只打印一次即可）
                     # logger.info(f"[DEBUG] sample vid head: {vid[:8].tolist()}")
                     rank = dist.get_rank() 
-                    u = vid.unique().tolist()
-                    logger.info(f"[DEBUG][Rank {rank}] first batch unique pids ({len(u)}): {u[:12]}")
+                    if rank == 0:  # 只在卡0上打印
+                        u = vid.unique().tolist()
+                        logger.info(f"[DEBUG][Rank {rank}] first batch unique pids ({len(u)}): {u[:12]}")
 
                 if cfg.MODEL.DIST_TRAIN:
                     rank = dist.get_rank()
-                    # if rank == 0:  # 仅主进程打印以避免重复
-                    world_size = dist.get_world_size()
-                    logger.info(
-                        "Rank[{}/{}] Epoch[{}] Iter[{}/{}] Loss: {:.3f}, Acc: {:.3f}, Acc_text: {:.3f}, itm_loss: {:.3f}, smi_Loss: {:.3f}, itc_loss: {:.3f}, Base Lr: {:.2e}".format(
-                            rank, world_size-1, epoch, (n_iter + 1), len(train_loader),
-                            loss_meter.avg, acc_meter.avg, acc_text.avg, itm_meter.avg,
-                            smi_meter.avg, itc_meter.avg, base_lr
+                    if rank == 0:  # 只在卡0上打印
+                        if epoch == 1 and (n_iter + 1) == log_period:
+                            # Debug：打印前几个 pid 以验证不同 rank 取样是否不同（只打印一次即可）
+                            u = vid.unique().tolist()
+                            logger.info(f"[DEBUG][Rank {rank}] first batch unique pids ({len(u)}): {u[:12]}")
+                        
+                        world_size = dist.get_world_size()
+                        logger.info(
+                            "Rank[{}/{}] Epoch[{}] Iter[{}/{}] Loss: {:.3f}, Acc: {:.3f}, Acc_text: {:.3f}, itm_loss: {:.3f}, smi_Loss: {:.3f}, itc_loss: {:.3f}, Base Lr: {:.2e}".format(
+                                rank, world_size-1, epoch, (n_iter + 1), len(train_loader),
+                                loss_meter.avg, acc_meter.avg, acc_text.avg, itm_meter.avg,
+                                smi_meter.avg, itc_meter.avg, base_lr
+                            )
                         )
-                    )
                 else:
                     logger.info(
                         "Epoch[{}] Iter[{}/{}] Loss: {:.3f}, Acc: {:.3f}, Acc_text: {:.3f}, itm_loss: {:.3f}, smi_Loss: {:.3f}, itc_loss: {:.3f},  Base Lr: {:.2e}".format(
@@ -322,13 +345,14 @@ def do_train(cfg,
         else:
             scheduler.step()
         if cfg.MODEL.DIST_TRAIN:
-            # 每个进程都输出epoch完成信息
+            # 只在卡0上输出epoch完成信息
             rank = dist.get_rank()
-            world_size = dist.get_world_size()
-            total_batch_size = train_loader.batch_size * world_size
-            logger.info("Rank[{}/{}] Epoch {} done. Time per epoch: {:.3f}[s] Speed: {:.1f}[samples/s]"
-                    .format(rank, world_size-1, epoch, time_per_batch * (n_iter_overall + 1), 
-                           total_batch_size / time_per_batch))
+            if rank == 0:
+                world_size = dist.get_world_size()
+                total_batch_size = train_loader.batch_size * world_size
+                logger.info("Rank[{}/{}] Epoch {} done. Time per epoch: {:.3f}[s] Speed: {:.1f}[samples/s]"
+                        .format(rank, world_size-1, epoch, time_per_batch * (n_iter_overall + 1), 
+                               total_batch_size / time_per_batch))
         else:
             logger.info("Epoch {} done. Time per epoch: {:.3f}[s] Speed: {:.1f}[samples/s]"
                     .format(epoch, time_per_batch * (n_iter_overall + 1), train_loader.batch_size / time_per_batch))
@@ -344,7 +368,7 @@ def do_train(cfg,
                 torch.save(model.state_dict(),
                            os.path.join(cfg.OUTPUT_DIR, cfg.MODEL.NAME + '_{}.pth'.format(epoch)))
 
-        if epoch % eval_period == 0:
+        if 0 == 0:
             if cfg.MODEL.DIST_TRAIN:
                 # 只让主进程进行验证，避免重复计算
                 rank = dist.get_rank()
@@ -363,9 +387,6 @@ def do_train(cfg,
                         logger.info("Rank-10: {:.1f}".format(t2i_Rank10))
                     
                     torch.cuda.empty_cache()
-                else:
-                    # 其他进程等待主进程完成验证
-                    logger.info("Rank[{}] Waiting for validation to complete...".format(rank))
                 
                 # 同步所有进程，确保验证完成后再继续
                 dist.barrier()
@@ -384,7 +405,12 @@ def do_train(cfg,
 
     # 训练结束后移除所有钩子
     if param_hooks:
-        logger.info("Removing parameter hooks...")
+        if cfg.MODEL.DIST_TRAIN:
+            rank = dist.get_rank()
+            if rank == 0:
+                logger.info("Removing parameter hooks...")
+        else:
+            logger.info("Removing parameter hooks...")
         remove_parameter_hooks(param_hooks)
 
 def do_inference(cfg,
