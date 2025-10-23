@@ -71,6 +71,11 @@ if __name__ == '__main__':
 
 
     model = make_model(cfg, num_class=num_classes, camera_num=camera_num, view_num = view_num, semantic_weight = cfg.MODEL.SEMANTIC_WEIGHT)
+    with open("model_parameters.txt", "w") as f:
+    # 使用 named_parameters() 获取模型的参数名称和参数本身
+        for name, param in model.named_parameters():
+            # 将参数的名称写入 txt 文件
+            f.write(name + "\n")
     loss_func, center_criterion = make_loss(cfg, num_classes=num_classes)
     optimizer, optimizer_center = make_optimizer(cfg, model, center_criterion)
 

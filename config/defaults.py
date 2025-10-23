@@ -36,9 +36,16 @@ _C.MODEL.NECK = 'bnneck'
 # If train loss include center loss, options: 'yes' or 'no'. Loss with center loss has different optimizer configuration
 _C.MODEL.IF_WITH_CENTER = 'no'
 
+_C.MODEL.FUSION_BRANCH = ''
+
+
 _C.MODEL.ID_LOSS_TYPE = 'softmax'
 _C.MODEL.ID_LOSS_WEIGHT = 1.0
 _C.MODEL.TRIPLET_LOSS_WEIGHT = 1.0
+_C.MODEL.BIO_ID_LOSS_WEIGHT = 0.3
+_C.MODEL.CLOT_ID_LOSS_WEIGHT = 0.3
+_C.MODEL.BIO_TRIPLET_LOSS_WEIGHT = 0.3
+_C.MODEL.CLOT_TRIPLET_LOSS_WEIGHT = 0.3
 
 _C.MODEL.METRIC_LOSS_TYPE = 'triplet'
 # If train with multi-gpu ddp mode, options: 'True', 'False'
@@ -202,3 +209,8 @@ _C.TEST.EVAL = False
 # ---------------------------------------------------------------------------- #
 # Path to checkpoint and saved log of trained model
 _C.OUTPUT_DIR = ""
+
+
+# 在config.py中的TEST部分添加
+_C.TEST.GENERATE_HEATMAPS = True  # 是否生成热力图
+_C.TEST.HEATMAP_MAX_IMAGES = 20    # 最多生成多少张热力图
