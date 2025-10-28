@@ -66,8 +66,8 @@ def do_train(cfg,
                 # batch = img.size(0)
                 # instruction = ('do_not_change_clothes',) * batch
                 # score, feat, _ = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
-                feat, bio_f, clot_f, score, f_logits, c_logits, _, text_embeds_s = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
-                loss = loss_fn(score, f_logits, c_logits, feat, bio_f, clot_f, target, text_embeds_s, target_cam)
+                feat, bio_fusion, score, bio_score, __, text_embeds_s, text_cls_score = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
+                loss = loss_fn(score, bio_score, feat, bio_fusion, target, text_embeds_s, target_cam, text_cls_score)
 
             scaler.scale(loss).backward()
 
@@ -148,9 +148,9 @@ def do_train(cfg,
                         #batch = img.size(0)
                         #instruction = ('do_not_change_clothes',) * batch
                         # feat, _ = model(img, cam_label=camids, view_label=target_view)
-                        feat, bio_f, clot_f, f_logits, c_logits, _, text_embeds_s = model(img, instruction, cam_label=camids, view_label=target_view )
-                        bio_clot_feat = torch.cat([bio_f, clot_f], dim=1)
-                        evaluator.update((bio_clot_feat, vid, camid))
+                        feat,bio_fusion,  _, text_embeds_s = model(img, instruction, cam_label=camids, view_label=target_view )
+                        # bio_clot_feat = torch.cat([feat, text_embeds_s], dim=1)
+                        evaluator.update((bio_fusion, vid, camid))
                 cmc, mAP, _, _, _, _, _ = evaluator.compute()
                 logger.info("Validation Results - Epoch: {}".format(epoch))
                 logger.info("mAP: {:.1%}".format(mAP))

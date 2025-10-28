@@ -104,35 +104,36 @@ def hard_example_mining(dist_mat, labels, return_inds=False):
     return dist_ap, dist_an
 
 
-# class TripletLoss(object):
-#     """
-#     Triplet loss using HARDER example mining,
-#     modified based on original triplet loss using hard example mining
-#     """
+class CrossTripletLoss(object):
+    """
+    Triplet loss using HARDER example mining,
+    modified based on original triplet loss using hard example mining
+    """
 
-#     def __init__(self, margin=None, hard_factor=0.0):
-#         self.margin = margin
-#         self.hard_factor = hard_factor
-#         if margin is not None:
-#             self.ranking_loss = nn.MarginRankingLoss(margin=margin)
-#         else:
-#             self.ranking_loss = nn.SoftMarginLoss()
+    def __init__(self, margin=None, hard_factor=0.0):
+        self.margin = margin
+        self.hard_factor = hard_factor
+        if margin is not None:
+            self.ranking_loss = nn.MarginRankingLoss(margin=margin)
+        else:
+            self.ranking_loss = nn.SoftMarginLoss()
 
-#     def __call__(self, global_feat, labels, normalize_feature=False):
-#         if normalize_feature:
-#             global_feat = normalize(global_feat, axis=-1)
-#         dist_mat = euclidean_dist(global_feat, global_feat)
-#         dist_ap, dist_an = hard_example_mining(dist_mat, labels)
+    def __call__(self, global_feat, labels, normalize_feature=False):
+        if normalize_feature:
+            global_feat = normalize(global_feat, axis=-1)
+        dist_mat = euclidean_dist(global_feat, global_feat)
+        dist_ap, dist_an = hard_example_mining(dist_mat, labels)
 
-#         #  dist_ap *= (1.0 + self.hard_factor)
-#         #  dist_an *= (1.0 - self.hard_factor)
+        #  dist_ap *= (1.0 + self.hard_factor)
+        #  dist_an *= (1.0 - self.hard_factor)
 
-#         y = dist_an.new().resize_as_(dist_an).fill_(1)
-#         if self.margin is not None:
-#             loss = self.ranking_loss(dist_an, dist_ap, y)
-#         else:
-#             loss = self.ranking_loss(dist_an - dist_ap, y)
-#         return loss, dist_ap, dist_an
+        y = dist_an.new().resize_as_(dist_an).fill_(1)
+        if self.margin is not None:
+            loss = self.ranking_loss(dist_an, dist_ap, y)
+        else:
+            loss = self.ranking_loss(dist_an - dist_ap, y)
+        return loss, dist_ap, dist_an
+    
 def cosine_simalirity(x, y):
     bs1, bs2 = x.size(0), y.size(0)
     frac_up = torch.matmul(x, y.transpose(0, 1))
