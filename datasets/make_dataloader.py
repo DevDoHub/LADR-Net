@@ -14,6 +14,7 @@ from .cuhkpedes import cuhkpedes
 from .msmt17 import MSMT17
 from .cuhk03 import Cuhk03
 from .luperson import LUPerson
+from .hampedes import HAMpedes
 from .sampler_ddp import RandomIdentitySampler_DDP
 import torch.distributed as dist
 from .mm import MM
@@ -27,7 +28,8 @@ __factory = {
     'RSTPReid': RSTPReid,
     "cuhkpedes":cuhkpedes,
     'sda':SDA,
-    'LUPerson':LUPerson
+    'LUPerson':LUPerson,
+    'HAMpedes':HAMpedes,
 }
 
 logger = logging.getLogger("dataloading...")

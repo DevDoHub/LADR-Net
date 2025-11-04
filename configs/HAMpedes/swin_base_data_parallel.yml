@@ -1,0 +1,57 @@
+MODEL:
+  PRETRAIN_HW_RATIO: 2
+  METRIC_LOSS_TYPE: 'triplet'
+  IF_LABELSMOOTH: 'off'
+  IF_WITH_CENTER: 'no'
+  NAME: 'transformer'
+  NO_MARGIN: True
+  DEVICE_ID: ('0,1,2')  # 多GPU设备
+  TRANSFORMER_TYPE: 'swin_base_patch4_window7_224'
+  STRIDE_SIZE: [16, 16]
+  FUSION_BRANCH: 'bio+clot'
+  TEXT_LENGTH: 56
+  DIST_TRAIN: True   # 启用分布式训练（数据并行）
+
+INPUT:
+  SIZE_TRAIN: [384, 128]
+  SIZE_TEST: [384, 128]
+  PROB: 0.5 # random horizontal flip
+  RE_PROB: 0.5 # random erasing
+  PADDING: 10
+  PIXEL_MEAN: [0.5, 0.5, 0.5]
+  PIXEL_STD: [0.5, 0.5, 0.5]
+
+DATASETS:
+  NAMES: ('HAMpedes')
+  ROOT_DIR: ('/hy-tmp/')
+  ROOT_TEST_DIR: ('./data/cuhkpedes/reid_raw.json')
+
+DATALOADER:
+  SAMPLER: 'softmax_triplet'
+  NUM_INSTANCE: 2
+  NUM_WORKERS: 4
+
+SOLVER:
+  OPTIMIZER_NAME: 'Adam'
+  MAX_EPOCHS: 100
+  BASE_LR: 0.0002  # 减少学习率
+  WARMUP_EPOCHS: 10
+  IMS_PER_BATCH: 64  # 减少批次大小到64
+  WARMUP_METHOD: 'cosine'
+  LARGE_FC_LR: True
+  CHECKPOINT_PERIOD: 5
+  LOG_PERIOD: 20      # 更频繁的日志输出
+  EVAL_PERIOD: 5
+  WEIGHT_DECAY: 0.00004
+  WEIGHT_DECAY_BIAS: 0.0
+  BIAS_LR_FACTOR: 2
+
+TEST:
+  EVAL: True
+  IMS_PER_BATCH: 64  # 测试时的批次大小
+  RE_RANKING: False
+  WEIGHT: ''
+  NECK_FEAT: 'before'
+  FEAT_NORM: 'yes'
+
+OUTPUT_DIR: './log/HAMpedes/swin_base_data_parallel'
