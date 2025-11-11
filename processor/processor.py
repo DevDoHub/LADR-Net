@@ -26,7 +26,7 @@ def do_train(cfg,
     eval_period = cfg.SOLVER.EVAL_PERIOD
     # eval_period = 1#TODO
     loss_moving_avg = 0.0  # 在循环开始之前初始化滑动平均损失
-    loss_moving_average_decay = 0.9  # 滑动平均损失的衰减率
+    loss_moving_average_decay = 0.6  # 滑动平均损失的衰减率
     # loss_moving_average_decay = 0.5
     device = "cuda"
     epochs = cfg.SOLVER.MAX_EPOCHS
@@ -45,9 +45,8 @@ def do_train(cfg,
     mentornet = MentorNet(label_embedding_size=8,
                         epoch_embedding_size=6, 
                         num_label_embedding=751,
-                        num_fc_nodes=100).to('cuda')
-    loss_p_percentile = list(torch.linspace(30, 90, steps=121))
-    burn_in_epoch = 0#12到24
+                        num_fc_nodes=64).to('cuda')
+    loss_p_percentile = list(torch.linspace(30, 90, steps=120))
     evaluator = R1_mAP_eval(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM)
     scaler = amp.GradScaler()
     # train
@@ -88,39 +87,34 @@ def do_train(cfg,
 
 
                 # 计算 loss 分位数（percentile_loss）
-                current_p = float(loss_p_percentile[epoch].to(device))
-                percentile_loss = torch.quantile(loss.detach(), q=current_p/ 100.0 ).to(device)  # 取 20% 分位损失
+                # current_p = float(loss_p_percentile[epoch-1].to(device))
+                percentile_loss = torch.quantile(loss.detach(), q=50/ 100.0, dim=0).to(device)  # 取 20% 分位损失
                 # percentile_loss = torch.quantile(loss.detach(), q=0.2 ).to(device)  # 取 20% 分位损失
                 loss_moving_avg = loss_moving_average_decay  * loss_moving_avg + (1 - loss_moving_average_decay)  * percentile_loss  # 更新滑动平均损失
                 lossdiff = loss - loss_moving_avg.to(device)  # 计算损失与滑动均值的差异
 
                 # 生成 v 的上下界
-                v_ones = torch.ones_like(loss, dtype=torch.float32)
-                v_zeros = torch.zeros_like(loss, dtype=torch.float32)
+                # v_ones = torch.ones_like(loss, dtype=torch.float32)
+                # v_zeros = torch.zeros_like(loss, dtype=torch.float32)
 
                 # 确保 epoch 和 burn_in_epoch 是张量
                 epoch_tensor = torch.tensor(epoch, device=loss.device)
-                burn_in_threshold = torch.tensor(burn_in_epoch - 1, device=loss.device)
-
-                # 计算 upper_bound
-                upper_bound = torch.where(epoch_tensor < burn_in_threshold, v_ones, v_zeros)
 
                 # MentorNet 计算 v
+                # 拼接
+                input_tensor = torch.cat((loss, lossdiff), dim=1)
                 epoch_tensor = torch.full((batch, 1), fill_value=epoch, dtype=torch.float32).to(device) 
-                input_data = torch.cat([loss.unsqueeze(1), lossdiff.unsqueeze(1), target.unsqueeze(1), epoch_tensor], dim=1).to('cuda')  # 拼接输入
+                input_data = torch.cat([input_tensor, target.unsqueeze(1), epoch_tensor], dim=1).to('cuda')  # 拼接输入
                 v = sigmoid(mentornet(input_data))  # MentorNet 计算权重 (batch, 1)
           
                 v = torch.as_tensor(v, dtype=torch.float32).to(device)  # 转换为 float32 类型
-                v = torch.maximum(v, upper_bound)  # 限制 v 的最大值
-
-                # 1. 阻断 v 的梯度
-                v = v.detach()  # v 的梯度被阻断，不会在反向传播中计算
+                # v = torch.maximum(v, upper_bound)  # 限制 v 的最大值
 
                 # 2. 加权损失
                 weighted_loss_vector = loss * v  # 对每个样本的损失进行加权
 
                 # 3. 计算加权损失的平均值
-                loss = weighted_loss_vector.mean() # 返回加权损失的平均值作为最终损失
+                loss = weighted_loss_vector.sum() / batch# 返回加权损失的平均值作为最终损失
 
                 # # --------- Mixup 数据增强 -------------
                 # mixed_img, mixed_target = mixup_data(img, target, v)  # 使用 MentorNet 权重做 Mixup
