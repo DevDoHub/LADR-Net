@@ -18,15 +18,15 @@ class LUPerson(BaseImageDataset):
         super(LUPerson, self).__init__()
         self.dataset_dir = osp.join(root, self.dataset_dir)
         self.img_dir = op.join(self.dataset_dir, 'lup_lmdb')
-        self.img_test_dir = op.join('./data/cuhkpedes/imgs') 
+        # self.img_test_dir = op.join('./data/market1501/imgs') 
 
-        self.anno_path = op.join('./data/cuhkpedes', 'reid_raw.json')
+        self.anno_path = op.join('./data/market1501', 'market1501_gpt_v1.json')
         self._check_before_run()
 
-        self.anno_path_train = './data/luperson/merged_data_simple.json'
+        self.anno_path_train = './data/luperson/merged_data_simple_normalizer.json'
         self._check_before_run()
         
-        self.anno_test = test_path
+        self.anno_test = self.anno_path
 
         self.train_annos, self._, self._ = self._split_anno(self.anno_path_train)
         self._, self.test_annos, self.val_annos = self._split_anno(self.anno_test)
@@ -48,28 +48,26 @@ class LUPerson(BaseImageDataset):
         self.num_val_pids,self.num_val_imgs, self.num_val_caption_ids, self.num_val_captions = self.get_imagedata_info(self.val)
 
     def _split_anno(self, anno_path):
-        train_annos, test_annos, val_annos = [], [], []
+        train_annos, query_annos, gallery_annos = [], [], []
         if isinstance(anno_path, list):
             annos = []
             for path in anno_path:
                 annos.extend(read_json(path))
         else:
             annos = read_json(anno_path)
-        try:
+        # try:
+        if "luperson" in anno_path:
             for key, anno in annos.items():
                 train_annos.append({key: anno})
-        except:
-            for anno in annos:
-                try:
-                    if anno['split'] == 'test':
-                        test_annos.append(anno)
-                    elif anno['split'] == 'val':
-                        val_annos.append(anno)
-                    elif anno['split'] == 'train':
-                        continue
-                except:
-                    train_annos.append(anno)
-        return train_annos, test_annos, val_annos   
+        # except:
+        if "market1501" in anno_path:
+            for key, anno in annos.items():
+                if 'query' in key :
+                    query_annos.append({key: anno})
+                elif 'bounding_box_test' in key:
+                    gallery_annos.append({key: anno})
+
+        return train_annos, query_annos, gallery_annos   
 
     def _check_before_run(self):
         """Check if all files are available before going deeper"""
@@ -93,7 +91,8 @@ class LUPerson(BaseImageDataset):
             image_id = 0
             for anno in annos:
                 inner_anno = list(anno.values())[0]
-                pid = int(inner_anno['id']-1) # make pid begin from 0
+                pid = int(inner_anno['id']-1) # make pid begin from 0nvidia-smi
+
                 pid_container.add(pid)
                 img_path = op.join(self.img_dir, list(anno.keys())[0])  # 使用外层字典的键作为图片路径
                 captions = inner_anno['captain'] # caption list
@@ -111,16 +110,18 @@ class LUPerson(BaseImageDataset):
             captions = []
             image_pids = []
             caption_pids = []
+            pattern = re.compile(r'([-\d]+)_c([\d])')
             for anno in annos:
-                pid = int(anno['id'])
+                pid, _ = map(int, pattern.search(str(anno.keys())).groups())
+                # pid = int(anno['id'])
                 pid_container.add(pid)
-                img_path = op.join(self.img_test_dir, anno['file_path'])
+                img_path = next(iter(anno.keys()))
                 img_paths.append(img_path)
                 image_pids.append(pid)
-                caption_list = anno['captions'] # caption list
-                for caption in caption_list:
-                    captions.append(caption)
-                    caption_pids.append(pid)
+                caption = next(iter(anno.values()))# caption list
+                # for caption in caption_list:
+                captions.append(caption)
+                caption_pids.append(pid)
             dataset = {
                 "image_pids": image_pids,
                 "img_paths": img_paths,

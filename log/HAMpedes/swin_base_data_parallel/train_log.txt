@@ -1,5 +1,5 @@
-2025-10-23 18:10:15 transreid INFO: Single GPU training
-2025-10-23 18:10:20 transreid INFO: Running with config:
+2025-12-11 20:02:36 transreid INFO: Single GPU training
+2025-12-11 20:02:40 transreid INFO: Running with config:
 DATALOADER:
   NUM_INSTANCE: 2
   NUM_WORKERS: 4
@@ -74,7 +74,7 @@ SOLVER:
   COSINE_SCALE: 30
   EVAL_PERIOD: 5
   GAMMA: 0.1
-  IMS_PER_BATCH: 4
+  IMS_PER_BATCH: 64
   LARGE_FC_LR: True
   LOG_PERIOD: 20
   MARGIN: 0.3
@@ -97,20 +97,3 @@ TEST:
   NECK_FEAT: before
   RE_RANKING: False
   WEIGHT: 
-2025-10-23 18:10:33 transreid.check INFO: Dataset statistics:
-2025-10-23 18:10:33 transreid.check INFO:   ----------------------------------------------------------
-2025-10-23 18:10:33 transreid.check INFO:   subset   | # ids | # images | # caption ids | # caption 
-2025-10-23 18:10:33 transreid.check INFO:   ----------------------------------------------------------
-2025-10-23 18:10:33 transreid.check INFO:   train    | 1000000 |  1000000 |   1000000 |   1999775
-2025-10-23 18:10:33 transreid.check INFO:   test     |  1000 |     3074 |      1000 |      6156
-2025-10-23 18:10:33 transreid.check INFO:   val      |  1000 |     3078 |      1000 |      6158
-2025-10-23 18:10:33 transreid.check INFO:   ----------------------------------------------------------
-2025-10-23 18:10:38 transreid INFO: using 1999775 images for training
-2025-10-23 18:10:38 transreid INFO: Creating model: transformer
-2025-10-23 18:11:03 transreid INFO: Total model parameters: 986743797
-2025-10-23 18:11:33 transreid INFO: ===========using cosine learning rate=======
-2025-10-23 18:11:33 transreid.train INFO: start training
-2025-10-23 18:11:30 transreid.train INFO: start training
-2025-10-23 18:11:30 transreid.train INFO: World size: 2
-2025-10-23 18:11:32 transreid.train INFO: Using 2 GPUs for training
-2025-10-23 18:11:32 transreid.train INFO: Using DistributedDataParallel for training

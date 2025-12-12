@@ -46,14 +46,14 @@ def main():
         '--master_addr=localhost',  # 主节点地址
         '--master_port=12355',      # 主节点端口
         'train.py',
-        '--config_file', 'configs/HAMpedes/swin_base_data_parallel.yml',
+        '--config_file', 'configs/LUPerson/swin_base_data_parallel.yml',
         'MODEL.PRETRAIN_CHOICE', "'self'",
         'MODEL.PRETRAIN_PATH', "'./checkpoint_tea.pth'",
-        'OUTPUT_DIR', "'./log/HAMpedes/swin_base_data_parallel'",
+        'OUTPUT_DIR', "'./log/LUPerson/swin_base_data_parallel'",
         'MODEL.SEMANTIC_WEIGHT', '0.2',
         'SOLVER.BASE_LR', '0.00002',
-        'SOLVER.IMS_PER_BATCH', '4',
-        'TEST.IMS_PER_BATCH', '32',
+        # 'SOLVER.IMS_PER_BATCH', '4',
+        'TEST.IMS_PER_BATCH', '64',
     ]
 
     print(f"执行命令: {' '.join(cmd)}")

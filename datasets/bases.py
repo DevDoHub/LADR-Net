@@ -103,6 +103,7 @@ class ImageTextDataset(Dataset):
     def __getitem__(self, index):
       
         pid, image_pid, img_path ,caption  = self.dataset[index]
+        
         img = read_image(img_path)
 
         if self.transform is not None:
@@ -185,20 +186,39 @@ def pre_caption(caption, max_words):
 
 
 class ImageDataset(Dataset):
-    def __init__(self, image_pids, img_paths, transform=None):
-        self.image_pids = image_pids
-        self.img_paths = img_paths
+    def __init__(self, dataset, transform=None, is_train=True,text_length: int = 77,truncate: bool = True):
+        self.dataset = dataset
         self.transform = transform
-
+        self.tokenizer = BertTokenizer.from_pretrained("./bert-base-uncased1/models--google-bert--bert-base-uncased/snapshots/86b5e0934494bd15c9632b12f734a8a67f723594")
+        # attr_file =  open(json_list, 'r', encoding='utf-8')
+        # self.attr_dict = json.load(attr_file)
+        self.text_length = cfg.MODEL.TEXT_LENGTH
+        self.truncate = truncate
     def __len__(self):
-        return len(self.image_pids)
+        return len(self.dataset)
 
     def __getitem__(self, index):
-        pid, img_path = self.image_pids[index], self.img_paths[index]
+      
+        # pid, image_pid, img_path ,caption  = self.dataset[index]
+        pid = image_pid = self.dataset['image_pids'][index]
+        img_path = self.dataset['img_paths'][index]
+        caption = self.dataset['captions'][index]
         img = read_image(img_path)
+
         if self.transform is not None:
             img = self.transform(img)
-        return pid, img
+
+        # TODO 例子"images/2/3/track_26_n_1056_t_164240.jpg_533060.jpg"
+        # img_path需要实际转换
+        # attr_item = self.attr_dict[instruct]
+        # attribute = pre_caption(caption, 50)
+
+        caption_tokens = self.tokenizer(caption, padding="max_length", truncation=self.truncate, max_length=self.text_length, return_tensors="pt")
+
+        # mlm_tokens, mlm_labels = self._build_random_masked_tokens_and_labels(
+        #     caption_tokens["input_ids"]
+        # )
+        return img, caption_tokens, pid, 0, 0, img_path
 
     def _build_random_masked_tokens_and_labels(self, tokens):
         """

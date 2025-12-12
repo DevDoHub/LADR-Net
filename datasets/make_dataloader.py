@@ -161,20 +161,26 @@ def make_dataloader(cfg):
     #     val_set, batch_size=cfg.TEST.IMS_PER_BATCH, shuffle=False, num_workers=num_workers,
     #     collate_fn=val_collate_fn
     # )
-    ds = dataset.test
-    val_img_set = ImageDataset(ds['image_pids'], ds['img_paths'],
-                                val_transforms)
-    val_txt_set = TextDataset(ds['caption_pids'],
-                                ds['captions'])
 
-    val_img_loader = DataLoader(val_img_set,
-                                batch_size=cfg.TEST.IMS_PER_BATCH,
-                                shuffle=False,
-                                num_workers=num_workers)
-    val_txt_loader = DataLoader(val_txt_set,
-                                batch_size=cfg.TEST.IMS_PER_BATCH,
-                                shuffle=False,
-                                num_workers=num_workers)
+
+    # 为验证/测试使用 val_transforms，并使用 val_collate_fn 保持与训练数据相同的 batch 格式
+    test_set = ImageDataset(dataset.test, transform=val_transforms, is_train=False)
+    val_set = ImageDataset(dataset.val, transform=val_transforms, is_train=False)
+
+    val_img_loader = DataLoader(
+        test_set,
+        batch_size=cfg.TEST.IMS_PER_BATCH,
+        shuffle=False,
+        num_workers=num_workers,
+        collate_fn=val_collate_fn
+    )
+    val_txt_loader = DataLoader(
+        val_set,
+        batch_size=cfg.TEST.IMS_PER_BATCH,
+        shuffle=False,
+        num_workers=num_workers,
+        collate_fn=val_collate_fn
+    )
 
     train_loader_normal = DataLoader(
         train_set_normal, batch_size=cfg.TEST.IMS_PER_BATCH, shuffle=False, num_workers=num_workers,

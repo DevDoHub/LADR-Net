@@ -1,14 +1,14 @@
-2025-10-14 20:16:21 transreid INFO: Single GPU training
-2025-10-14 20:16:24 transreid INFO: Running with config:
+2025-12-12 19:35:14 transreid INFO: Single GPU training
+2025-12-12 19:35:24 transreid INFO: Running with config:
 DATALOADER:
-  NUM_INSTANCE: 1
-  NUM_WORKERS: 75
+  NUM_INSTANCE: 4
+  NUM_WORKERS: 1
   REMOVE_TAIL: 0
   SAMPLER: softmax_triplet
 DATASETS:
   NAMES: LUPerson
   ROOT_DIR: /hy-tmp/
-  ROOT_TEST_DIR: ./data/cuhkpedes/reid_raw.json
+  ROOT_TEST_DIR: ./data/market1501/market1501_gpt_v1.json
   ROOT_TRAIN_DIR: ../data
   ROOT_VAL_DIR: ../data
 INPUT:
@@ -28,7 +28,7 @@ MODEL:
   CLOT_TRIPLET_LOSS_WEIGHT: 0.65
   COS_LAYER: False
   DEVICE: cuda
-  DEVICE_ID: 0,1,2
+  DEVICE_ID: 0,1
   DEVIDE_LENGTH: 4
   DIST_TRAIN: True
   DROPOUT_RATE: 0.0
@@ -65,7 +65,7 @@ MODEL:
   TRIPLET_LOSS_WEIGHT: 1.0
 OUTPUT_DIR: ./log/LUPerson/swin_base_data_parallel
 SOLVER:
-  BASE_LR: 1e-05
+  BASE_LR: 2e-05
   BIAS_LR_FACTOR: 2
   CENTER_LOSS_WEIGHT: 0.0005
   CENTER_LR: 0.5
@@ -74,7 +74,7 @@ SOLVER:
   COSINE_SCALE: 30
   EVAL_PERIOD: 5
   GAMMA: 0.1
-  IMS_PER_BATCH: 4
+  IMS_PER_BATCH: 64
   LARGE_FC_LR: True
   LOG_PERIOD: 20
   MARGIN: 0.3
@@ -93,23 +93,72 @@ TEST:
   DIST_MAT: dist_mat.npy
   EVAL: True
   FEAT_NORM: yes
-  IMS_PER_BATCH: 32
+  IMS_PER_BATCH: 64
   NECK_FEAT: before
   RE_RANKING: False
   WEIGHT: 
-2025-10-14 20:16:40 transreid.check INFO: Dataset statistics:
-2025-10-14 20:16:40 transreid.check INFO:   ----------------------------------------------------------
-2025-10-14 20:16:40 transreid.check INFO:   subset   | # ids | # images | # caption ids | # caption 
-2025-10-14 20:16:40 transreid.check INFO:   ----------------------------------------------------------
-2025-10-14 20:16:40 transreid.check INFO:   train    | 1020022 |  1020022 |   1020022 |   4032810
-2025-10-14 20:16:40 transreid.check INFO:   test     |  1000 |     3074 |      1000 |      6156
-2025-10-14 20:16:40 transreid.check INFO:   val      |  1000 |     3078 |      1000 |      6158
-2025-10-14 20:16:40 transreid.check INFO:   ----------------------------------------------------------
-2025-10-14 20:16:44 transreid INFO: using 4032810 images for training
-2025-10-14 20:16:44 transreid INFO: Creating model: transformer
-2025-10-14 20:17:02 transreid INFO: Total model parameters: 1002120693
-2025-10-14 20:17:25 transreid INFO: ===========using cosine learning rate=======
-2025-10-14 20:17:25 transreid.train INFO: start training
-2025-10-14 20:17:25 transreid.train INFO: World size: 2
-2025-10-14 20:17:25 transreid.train INFO: Using 2 GPUs for training
-2025-10-14 20:17:25 transreid.train INFO: Using DistributedDataParallel for training
+2025-12-12 19:35:34 transreid.check INFO: Dataset statistics:
+2025-12-12 19:35:34 transreid.check INFO:   ----------------------------------------------------------
+2025-12-12 19:35:34 transreid.check INFO:   subset   | # ids | # images | # caption ids | # caption 
+2025-12-12 19:35:34 transreid.check INFO:   ----------------------------------------------------------
+2025-12-12 19:35:34 transreid.check INFO:   train    | 1020022 |  1020022 |   1020022 |   4032810
+2025-12-12 19:35:34 transreid.check INFO:   test     |   750 |     3377 |       750 |      3377
+2025-12-12 19:35:34 transreid.check INFO:   val      |   750 |    13136 |       750 |     13136
+2025-12-12 19:35:34 transreid.check INFO:   ----------------------------------------------------------
+2025-12-12 19:35:36 transreid INFO: using 4032810 images for training
+2025-12-12 19:35:36 transreid INFO: Creating model: transformer
+2025-12-12 19:35:50 transreid INFO: Total model parameters: 1202571762
+2025-12-12 19:36:08 transreid INFO: ===========using cosine learning rate=======
+2025-12-12 19:36:08 transreid.train INFO: start training
+2025-12-12 19:36:05 transreid.train INFO: start training
+2025-12-12 19:36:05 transreid.train INFO: World size: 2
+2025-12-12 19:36:06 transreid.train INFO: Using 2 GPUs for training
+2025-12-12 19:36:06 transreid.train INFO: Using DistributedDataParallel for training
+2025-12-12 19:36:23 transreid.train INFO: Rank[0] Starting validation for Epoch: 10
+2025-12-12 19:36:23 transreid.train INFO: Rank[0] Validation completed for Epoch: 10
+2025-12-12 19:36:23 transreid.train INFO: Validation Results - Epoch: 10
+2025-12-12 19:36:23 transreid.train INFO: mAP: 0.0
+2025-12-12 19:36:23 transreid.train INFO: mINP: 0.0
+2025-12-12 19:36:23 transreid.train INFO: Rank-1: 0.0
+2025-12-12 19:36:23 transreid.train INFO: Rank-5: 0.0
+2025-12-12 19:36:23 transreid.train INFO: Rank-10: 0.0
+2025-12-12 19:36:35 transreid.train INFO: Rank[0] Starting validation for Epoch: 20
+2025-12-12 19:36:36 transreid.train INFO: Rank[0] Validation completed for Epoch: 20
+2025-12-12 19:36:36 transreid.train INFO: Validation Results - Epoch: 20
+2025-12-12 19:36:36 transreid.train INFO: mAP: 0.0
+2025-12-12 19:36:36 transreid.train INFO: mINP: 0.0
+2025-12-12 19:36:36 transreid.train INFO: Rank-1: 0.0
+2025-12-12 19:36:36 transreid.train INFO: Rank-5: 0.0
+2025-12-12 19:36:36 transreid.train INFO: Rank-10: 0.0
+2025-12-12 19:36:48 transreid.train INFO: Rank[0] Starting validation for Epoch: 30
+2025-12-12 19:36:48 transreid.train INFO: Rank[0] Validation completed for Epoch: 30
+2025-12-12 19:36:48 transreid.train INFO: Validation Results - Epoch: 30
+2025-12-12 19:36:48 transreid.train INFO: mAP: 0.0
+2025-12-12 19:36:48 transreid.train INFO: mINP: 0.0
+2025-12-12 19:36:48 transreid.train INFO: Rank-1: 0.0
+2025-12-12 19:36:48 transreid.train INFO: Rank-5: 0.0
+2025-12-12 19:36:48 transreid.train INFO: Rank-10: 0.0
+2025-12-12 19:37:00 transreid.train INFO: Rank[0] Starting validation for Epoch: 40
+2025-12-12 19:37:01 transreid.train INFO: Rank[0] Validation completed for Epoch: 40
+2025-12-12 19:37:01 transreid.train INFO: Validation Results - Epoch: 40
+2025-12-12 19:37:01 transreid.train INFO: mAP: 0.0
+2025-12-12 19:37:01 transreid.train INFO: mINP: 0.0
+2025-12-12 19:37:01 transreid.train INFO: Rank-1: 0.0
+2025-12-12 19:37:01 transreid.train INFO: Rank-5: 0.0
+2025-12-12 19:37:01 transreid.train INFO: Rank-10: 0.0
+2025-12-12 19:37:13 transreid.train INFO: Rank[0] Starting validation for Epoch: 50
+2025-12-12 19:37:13 transreid.train INFO: Rank[0] Validation completed for Epoch: 50
+2025-12-12 19:37:13 transreid.train INFO: Validation Results - Epoch: 50
+2025-12-12 19:37:13 transreid.train INFO: mAP: 0.0
+2025-12-12 19:37:13 transreid.train INFO: mINP: 0.0
+2025-12-12 19:37:13 transreid.train INFO: Rank-1: 0.0
+2025-12-12 19:37:13 transreid.train INFO: Rank-5: 0.0
+2025-12-12 19:37:13 transreid.train INFO: Rank-10: 0.0
+2025-12-12 19:37:26 transreid.train INFO: Rank[0] Starting validation for Epoch: 60
+2025-12-12 19:37:27 transreid.train INFO: Rank[0] Validation completed for Epoch: 60
+2025-12-12 19:37:27 transreid.train INFO: Validation Results - Epoch: 60
+2025-12-12 19:37:27 transreid.train INFO: mAP: 0.0
+2025-12-12 19:37:27 transreid.train INFO: mINP: 0.0
+2025-12-12 19:37:27 transreid.train INFO: Rank-1: 0.0
+2025-12-12 19:37:27 transreid.train INFO: Rank-5: 0.0
+2025-12-12 19:37:27 transreid.train INFO: Rank-10: 0.0

@@ -1247,12 +1247,12 @@ class SwinTransformer(BaseModule):
             for i in range(len(depths)):
                 if i >= len(depths) - 1:
                     i = len(depths) - 2
-                semantic_embed_w = nn.Linear(2, self.num_features[i+1])
-                semantic_embed_b = nn.Linear(2, self.num_features[i+1])
-                for param in semantic_embed_w.parameters():
-                    param.requires_grad = False
-                for param in semantic_embed_b.parameters():
-                    param.requires_grad = False
+                semantic_embed_w = nn.Linear(768, self.num_features[i+1])
+                semantic_embed_b = nn.Linear(768, self.num_features[i+1])
+                # for param in semantic_embed_w.parameters():
+                #     param.requires_grad = False
+                # for param in semantic_embed_b.parameters():
+                #     param.requires_grad = False
                 trunc_normal_init(semantic_embed_w, std=.02, bias=0.)
                 trunc_normal_init(semantic_embed_b, std=.02, bias=0.)
                 self.semantic_embed_w.append(semantic_embed_w)
@@ -1320,6 +1320,7 @@ class SwinTransformer(BaseModule):
                 if k.startswith('backbone.'):
                     state_dict[k[9:]] = v
 
+
             # strip prefix of state_dict
             if list(state_dict.keys())[0].startswith('module.'):
                 state_dict = {k[7:]: v for k, v in state_dict.items()}
@@ -1357,14 +1358,20 @@ class SwinTransformer(BaseModule):
                     state_dict[table_key] = table_pretrained_resized.view(
                         nH2, L2).permute(1, 0).contiguous()
 
-            res = self.load_state_dict(state_dict, False)
-            print('unloaded parameters:', res)
+            # 直接从 checkpoint 中删除 semantic_embed_* 参数，避免尺寸不匹配报错
+            for k in list(state_dict.keys()):
+                if k.startswith('semantic_embed_w') or k.startswith('semantic_embed_b'):
+                    # logger.warning(f"Remove checkpoint param '{k}' to avoid size mismatch")
+                    state_dict.pop(k, None)
 
-    def forward(self, x, semantic_weight=None):
-        if self.semantic_weight >= 0 and semantic_weight == None:
-            w = torch.ones(x.shape[0],1) * self.semantic_weight
-            w = torch.cat([w, 1-w], axis=-1)
-            semantic_weight = w.cuda()
+            res = self.load_state_dict(state_dict, False)
+            # print('unloaded parameters:', res)
+        
+    def forward(self, x, semantic_weight=None, text_feat=None):
+        # if self.semantic_weight >= 0 and semantic_weight == None:
+        #     w = torch.ones(x.shape[0],1) * self.semantic_weight
+        #     w = torch.cat([w, 1-w], axis=-1)
+        #     semantic_weight = w.cuda()
 
         x, hw_shape = self.patch_embed(x)
 
@@ -1376,9 +1383,10 @@ class SwinTransformer(BaseModule):
         for i, stage in enumerate(self.stages):
             x, hw_shape, out, out_hw_shape = stage(x, hw_shape)
             if self.semantic_weight >= 0:
-                sw = self.semantic_embed_w[i](semantic_weight).unsqueeze(1)
-                sb = self.semantic_embed_b[i](semantic_weight).unsqueeze(1)
+                sw = self.semantic_embed_w[i](text_feat).unsqueeze(1)
+                sb = self.semantic_embed_b[i](text_feat).unsqueeze(1)
                 x = x * self.softplus(sw) + sb
+
             if i in self.out_indices:
                 norm_layer = getattr(self, f'norm{i}')
                 out = norm_layer(out)

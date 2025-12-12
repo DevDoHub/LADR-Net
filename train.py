@@ -57,13 +57,13 @@ if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = cfg.MODEL.DEVICE_ID
 
     # 加载数据集
-    train_loader, train_loader_normal,  val_img_loader, val_txt_loader , num_test, num_classes = make_dataloader(cfg)
+    train_loader, train_loader_normal,  query_loader, gallery_loader , num_test, num_classes = make_dataloader(cfg)
     logger.info('using {} images for training'.format(len(train_loader.dataset)))
 
     # 创建模型
     logger.info("Creating model: {}".format(cfg.MODEL.NAME))
     model = make_model(cfg, num_class=num_classes, camera_num=0, view_num = 0, semantic_weight = cfg.MODEL.SEMANTIC_WEIGHT)
-    model.load_param('/root/SOLIDER-REID-PRO/transformer_30.pth')
+    # model.load_param('/root/SOLIDER-REID-PRO/transformer_30.pth')
     ## 记录一些信息
     # 计算模型的参数量
     total_params = sum(p.numel() for p in model.parameters())
@@ -91,8 +91,8 @@ if __name__ == '__main__':
         model,
         center_criterion,
         train_loader,
-        val_img_loader, 
-        val_txt_loader,
+        query_loader, 
+        gallery_loader,
         optimizer,
         optimizer_center,
         scheduler,

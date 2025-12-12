@@ -248,148 +248,151 @@ class build_transformer(nn.Module):
                 self.fcneck = nn.Linear(self.in_planes, self.feat_dim, bias=False)
                 self.fcneck.apply(weights_init_xavier)
                 self.in_planes = cfg.MODEL.FEAT_DIM
-            self.classifier = nn.Linear(768, self.num_classes, bias=False)
+            self.classifier = nn.Linear(self.in_planes, self.num_classes, bias=False)
             self.classifier.apply(weights_init_classifier)
-
-        self.bottleneck = nn.BatchNorm1d(768)
+            # self.classifier_TEXT = nn.Linear(self.text_embed_dim, self.num_classes, bias=False)
+            # self.classifier_TEXT.apply(weights_init_classifier)
+            # self.text_classifier_projector = nn.Linear(self.text_embed_dim, self.in_planes, bias=False)
+            # self.text_classifier_projector.apply(weights_init_xavier)
+        self.bottleneck = nn.BatchNorm1d(self.in_planes)
         self.bottleneck.bias.requires_grad_(False)
         self.bottleneck.apply(weights_init_kaiming)
 
         self.dropout = nn.Dropout(self.dropout_rate)
 
-        self.num_features = 768
+        self.num_features = self.in_planes
 
         self.fusion_feat_bn = nn.BatchNorm1d(self.num_features)
         self.fusion_feat_bn.bias.requires_grad_(False)
         init.constant_(self.fusion_feat_bn.weight, 1)
         init.constant_(self.fusion_feat_bn.bias, 0)
 
-        self.feat_bn = nn.BatchNorm1d(768)
+        self.feat_bn = nn.BatchNorm1d(self.in_planes)
         self.feat_bn.bias.requires_grad_(False)
         init.constant_(self.feat_bn.weight, 1)
         init.constant_(self.feat_bn.bias, 0)
 
-        self.avgpool_image = nn.AdaptiveAvgPool1d(3)
-        self.avgpool_text = nn.AdaptiveAvgPool1d(3)
-        self.vision_proj = build_itc_mlp(3072, 1024, 0.5)
-        self.text_proj = build_itc_mlp(3072, 1024, 0.5)
+        # self.avgpool_image = nn.AdaptiveAvgPool1d(3)
+        # self.avgpool_text = nn.AdaptiveAvgPool1d(3)
+        # self.vision_proj = build_itc_mlp(3072, 1024, 0.5)
+        # self.text_proj = build_itc_mlp(3072, 1024, 0.5)
 
-        self.image_projection = nn.Parameter(torch.empty(1024, 768))
-        nn.init.normal_(self.image_projection, std=0.01)  # 初始化投影矩阵
+        # self.image_projection = nn.Parameter(torch.empty(1024, 768))
+        # nn.init.normal_(self.image_projection, std=0.01)  # 初始化投影矩阵
 
         
-        self.temp = nn.Parameter(torch.ones([]) * 0.07)
-        self.itm_head = build_itm_mlp(input_dim=self.text_embed_dim, output_dim=2)
+        # self.temp = nn.Parameter(torch.ones([]) * 0.07)
+        # self.itm_head = build_itm_mlp(input_dim=self.text_embed_dim, output_dim=2)
 
-    def get_image_feat(self, image_embeds):
+    # def get_image_feat(self, image_embeds):
 
-        x = self.avgpool_image(image_embeds.transpose(1, 2))
-        x = x.transpose(1, 2)
-        x = torch.cat([x[:, 0, :],   x[:, 1, :], x[:, 2, :]], dim=1)
-        image_feat = self.vision_proj(x)
+    #     x = self.avgpool_image(image_embeds.transpose(1, 2))
+    #     x = x.transpose(1, 2)
+    #     x = torch.cat([x[:, 0, :],   x[:, 1, :], x[:, 2, :]], dim=1)
+    #     image_feat = self.vision_proj(x)
 
-        return image_feat
+    #     return image_feat
 
 
-    def get_text_feat(self, text_embeds):
+    # def get_text_feat(self, text_embeds):
 
-        x = self.avgpool_text(text_embeds[:, 1:, ].transpose(1, 2))  # B C 3
-        x = x.transpose(1, 2)  # B 3 C
-        x = torch.cat([x[:, 0, :], x[:, 0, :], x[:, 1, :], x[:, 1, :], x[:, 2, :], x[:, 2, :]], dim=1)
-        text_feat = self.text_proj(x)
+    #     x = self.avgpool_text(text_embeds[:, 1:, ].transpose(1, 2))  # B C 3
+    #     x = x.transpose(1, 2)  # B 3 C
+    #     x = torch.cat([x[:, 0, :], x[:, 0, :], x[:, 1, :], x[:, 1, :], x[:, 2, :], x[:, 2, :]], dim=1)
+    #     text_feat = self.text_proj(x)
 
-        return text_feat
+        # return text_feat
     
 
 
-    def dual_attn(self, image_embeds, image_atts, text_embeds, text_atts):
-        encoder = self.text_encoder.bert
-        return encoder(encoder_embeds=text_embeds,
-                attention_mask=text_atts,
-                encoder_hidden_states=image_embeds,
-                encoder_attention_mask=image_atts,
-                return_dict=True,
-                mode='fusion',
-                ).last_hidden_state
+    # def dual_attn(self, image_embeds, image_atts, text_embeds, text_atts):
+    #     encoder = self.text_encoder.bert
+    #     return encoder(encoder_embeds=text_embeds,
+    #             attention_mask=text_atts,
+    #             encoder_hidden_states=image_embeds,
+    #             encoder_attention_mask=image_atts,
+    #             return_dict=True,
+    #             mode='fusion',
+    #             ).last_hidden_state
     
-    def get_matching_loss(self, image_embeds, image_atts, image_feat, text_embeds, text_atts, text_feat, idx):
-        """
-        Matching Loss with hard negatives
-        """
-        bs = image_embeds.size(0)
+    # def get_matching_loss(self, image_embeds, image_atts, image_feat, text_embeds, text_atts, text_feat, idx):
+    #     """
+    #     Matching Loss with hard negatives
+    #     """
+    #     bs = image_embeds.size(0)
 
-        image_feat = F.normalize(image_feat, dim=-1)
-        text_feat = F.normalize(text_feat, dim=-1)
-
-
-        with torch.no_grad():
-            sim_i2t = image_feat @ text_feat.t() / self.temp
-            sim_t2i = text_feat @ image_feat.t() / self.temp
-            weights_i2t = F.softmax(sim_i2t, dim=1) + 1e-5
-            weights_t2i = F.softmax(sim_t2i, dim=1) + 1e-5
-
-            idx = idx.view(-1, 1)
-            assert idx.size(0) == bs
-            mask = torch.eq(idx, idx.t())
-            weights_i2t.masked_fill_(mask, 0)
-            weights_t2i.masked_fill_(mask, 0)
-
-        image_embeds_neg = []
-        image_atts_neg = []
-        for b in range(bs):
-            neg_idx = torch.multinomial(weights_t2i[b], 1).item()
-            image_embeds_neg.append(image_embeds[neg_idx])
-            image_atts_neg.append(image_atts[neg_idx])
-        image_embeds_neg = torch.stack(image_embeds_neg, dim=0)
-        image_atts_neg = torch.stack(image_atts_neg, dim=0)
-
-        text_embeds_neg = []
-        text_atts_neg = []
-        for b in range(bs):
-            neg_idx = torch.multinomial(weights_i2t[b], 1).item()
-            text_embeds_neg.append(text_embeds[neg_idx])
-            text_atts_neg.append(text_atts[neg_idx])
-        text_embeds_neg = torch.stack(text_embeds_neg, dim=0)
-        text_atts_neg = torch.stack(text_atts_neg, dim=0)
-
-        text_embeds_all = torch.cat([text_embeds, text_embeds_neg], dim=0)
-        text_atts_all = torch.cat([text_atts, text_atts_neg], dim=0)
-        image_embeds_all = torch.cat([image_embeds_neg, image_embeds], dim=0)
-        image_atts_all = torch.cat([image_atts_neg, image_atts], dim=0)
-
-        cross_pos = self.dual_attn(image_embeds, image_atts, text_embeds,
-                                          text_atts)[:, 0, :]
-        cross_neg = self.dual_attn(image_embeds_all, image_atts_all, text_embeds_all,
-                                          text_atts_all)[:, 0, :]
+    #     image_feat = F.normalize(image_feat, dim=-1)
+    #     text_feat = F.normalize(text_feat, dim=-1)
 
 
-        output = self.itm_head(torch.cat([cross_pos, cross_neg], dim=0))
-        itm_labels = torch.cat([torch.ones(bs, dtype=torch.long),
-                                torch.zeros(2 * bs, dtype=torch.long)], dim=0).to(image_embeds.device)
-        itm_loss = F.cross_entropy(output, itm_labels)
+    #     with torch.no_grad():
+    #         sim_i2t = image_feat @ text_feat.t() / self.temp
+    #         sim_t2i = text_feat @ image_feat.t() / self.temp
+    #         weights_i2t = F.softmax(sim_i2t, dim=1) + 1e-5
+    #         weights_t2i = F.softmax(sim_t2i, dim=1) + 1e-5
 
-        return itm_loss
+    #         idx = idx.view(-1, 1)
+    #         assert idx.size(0) == bs
+    #         mask = torch.eq(idx, idx.t())
+    #         weights_i2t.masked_fill_(mask, 0)
+    #         weights_t2i.masked_fill_(mask, 0)
 
-    def get_contrastive_loss(self, image_feat, text_feat, idx):
+    #     image_embeds_neg = []
+    #     image_atts_neg = []
+    #     for b in range(bs):
+    #         neg_idx = torch.multinomial(weights_t2i[b], 1).item()
+    #         image_embeds_neg.append(image_embeds[neg_idx])
+    #         image_atts_neg.append(image_atts[neg_idx])
+    #     image_embeds_neg = torch.stack(image_embeds_neg, dim=0)
+    #     image_atts_neg = torch.stack(image_atts_neg, dim=0)
 
-        image_feat = F.normalize(image_feat, dim=-1)
-        text_feat = F.normalize(text_feat, dim=-1)
+    #     text_embeds_neg = []
+    #     text_atts_neg = []
+    #     for b in range(bs):
+    #         neg_idx = torch.multinomial(weights_i2t[b], 1).item()
+    #         text_embeds_neg.append(text_embeds[neg_idx])
+    #         text_atts_neg.append(text_atts[neg_idx])
+    #     text_embeds_neg = torch.stack(text_embeds_neg, dim=0)
+    #     text_atts_neg = torch.stack(text_atts_neg, dim=0)
 
-        image_feat_all = image_feat
-        text_feat_all = text_feat
+    #     text_embeds_all = torch.cat([text_embeds, text_embeds_neg], dim=0)
+    #     text_atts_all = torch.cat([text_atts, text_atts_neg], dim=0)
+    #     image_embeds_all = torch.cat([image_embeds_neg, image_embeds], dim=0)
+    #     image_atts_all = torch.cat([image_atts_neg, image_atts], dim=0)
+
+    #     cross_pos = self.dual_attn(image_embeds, image_atts, text_embeds,
+    #                                       text_atts)[:, 0, :]
+    #     cross_neg = self.dual_attn(image_embeds_all, image_atts_all, text_embeds_all,
+    #                                       text_atts_all)[:, 0, :]
+
+
+    #     output = self.itm_head(torch.cat([cross_pos, cross_neg], dim=0))
+    #     itm_labels = torch.cat([torch.ones(bs, dtype=torch.long),
+    #                             torch.zeros(2 * bs, dtype=torch.long)], dim=0).to(image_embeds.device)
+    #     itm_loss = F.cross_entropy(output, itm_labels)
+
+    #     return itm_loss
+
+    # def get_contrastive_loss(self, image_feat, text_feat, idx):
+
+    #     image_feat = F.normalize(image_feat, dim=-1)
+    #     text_feat = F.normalize(text_feat, dim=-1)
+
+    #     image_feat_all = image_feat
+    #     text_feat_all = text_feat
      
-        logits = image_feat_all @ text_feat_all.t() / self.temp
+    #     logits = image_feat_all @ text_feat_all.t() / self.temp
 
-        idx = idx.view(-1, 1)
-        assert idx.size(0) == image_feat.size(0)
-        idx_all = idx
-        pos_idx = torch.eq(idx_all, idx_all.t()).float()
-        labels = pos_idx / pos_idx.sum(1, keepdim=True)
+    #     idx = idx.view(-1, 1)
+    #     assert idx.size(0) == image_feat.size(0)
+    #     idx_all = idx
+    #     pos_idx = torch.eq(idx_all, idx_all.t()).float()
+    #     labels = pos_idx / pos_idx.sum(1, keepdim=True)
 
-        loss_i2t = -torch.sum(F.log_softmax(logits, dim=1) * labels, dim=1).mean()
-        loss_t2i = -torch.sum(F.log_softmax(logits.t(), dim=1) * labels, dim=1).mean()
+    #     loss_i2t = -torch.sum(F.log_softmax(logits, dim=1) * labels, dim=1).mean()
+    #     loss_t2i = -torch.sum(F.log_softmax(logits.t(), dim=1) * labels, dim=1).mean()
 
-        return (loss_i2t + loss_t2i) / 2
+    #     return (loss_i2t + loss_t2i) / 2
 
     def forward(self, x, instruction, label=None, cam_label= None, view_label=None):
         # 获取模型当前所在的设备
@@ -405,27 +408,31 @@ class build_transformer(nn.Module):
         # text_embeds = text_embeds @ self.text_projection  # 将 (batch, seq_len, 768) 转为 (batch, seq_len, 1024)
         text_feat = text_embeds[:, 0, :]
 
-        global_feat, featmaps = self.base(x)
+        global_feat, featmaps = self.base(x, text_feat=text_feat)
         # 在 forward 或 __init__ 中添加
         # total_params = count_parameters(self.text_encoder)
         # print(f"Base model parameters: {total_params:,}")#global_feat全局特征 featmaps[-1]最后阶段输出的([64, 1024, 12, 4])
         batch = featmaps[-1].size(0)
         local_feat_all = featmaps[-1].view(batch, 1024, 12 * 4).permute(0, 2, 1)
         image_embeds = torch.cat((global_feat.unsqueeze(1), local_feat_all), dim=1)#TODO
-        image_embeds = image_embeds @ self.image_projection
-        image_atts = torch.ones(image_embeds.size()[:-1], dtype=torch.long).to(device)
-        image_feat = image_embeds[:, 0, :]
+        # image_embeds = image_embeds @ self.image_projection
+        # image_atts = torch.ones(image_embeds.size()[:-1], dtype=torch.long).to(device)
+        # image_feat = image_embeds[:, 0, :]
 
- 
+        # if self.reduce_feat_dim:
+        #     global_feat = self.fcneck(global_feat)
+
+        feat = self.bottleneck(global_feat)
+        feat_cls = self.dropout(feat)
         # image_feat, text_feat = self.get_image_feat(image_embeds), self.get_text_feat(text_embeds)
 
-        loss_itm = self.get_matching_loss(image_embeds, image_atts, image_feat, text_embeds, text_atts=instruction['attention_mask'].to('cuda'), text_feat=text_feat, idx=label)
+        # loss_itm = self.get_matching_loss(image_embeds, image_atts, image_feat, text_embeds, text_atts=instruction['attention_mask'].to('cuda'), text_feat=text_feat, idx=label)
 
-        loss_itc = self.get_contrastive_loss(image_feat, text_feat, label)
+        # loss_itc = self.get_contrastive_loss(image_feat, text_feat, label)
 
 
-        if self.reduce_feat_dim:
-            logits = self.fcneck(local_feat_all)
+        # if self.reduce_feat_dim:
+        #     logits = self.fcneck(local_feat_all)
 
         # feat = self.bottleneck(image_feat)
         # text_feat = self.feat_bn(text_feat)
@@ -434,19 +441,20 @@ class build_transformer(nn.Module):
 
         if self.training:
             if self.ID_LOSS_TYPE in ('arcface', 'cosface', 'amsoftmax', 'circle'):
-                cls_score = self.classifier(image_feat, label)
-                text_score = self.classifier(text_feat, label)
+                cls_score = self.classifier(feat_cls, label)
+                # text_score = self.classifier(text_feat, label)
             else:
-                cls_score = self.classifier(image_feat)
-                text_score = self.classifier(text_feat)
-            return image_feat, image_feat, image_feat, cls_score, cls_score, cls_score, local_feat_all, text_feat, text_score, loss_itm, loss_itc# global feature for triplet loss  
+                cls_score = self.classifier(feat_cls)
+                # text_score = self.classifier_TEXT(text_feat)
+                # text_score = self.classifier(self.text_classifier_projector(text_feat))
+            return global_feat, cls_score, local_feat_all, text_feat# global feature for triplet loss  
         else:
             if self.neck_feat == 'after':
                 # print("Test with feature after BN")
                 return feat, featmaps
             else:
                 # print("Test with feature before BN")
-                return image_feat, image_feat, image_feat, cls_score, cls_score, local_feat_all, text_feat
+                return global_feat, local_feat_all, text_feat
 
     def load_param(self, trained_path):
         param_dict = torch.load(trained_path, map_location = 'cpu')

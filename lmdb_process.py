@@ -9,10 +9,10 @@ import cv2
 import lmdb
 import pickle
 import json
-output_dir = './data/LUPerson/lup_lmdb'
+output_dir = '/hy-tmp/LUPerson/lup_lmdb'
 os.makedirs(output_dir, exist_ok=True)
-json_file = "./data/LUPerson/merged_data_simple.json"
-lmdb_dir = "./data/LUPerson/lmdb"
+json_file = "/root/SOLIDER-REID-PRO/data/luperson/merged_data_simple_normalizer.json"
+lmdb_dir = "/hy-tmp/LUPerson/LUPerson/LUPerson/lmdb"
 
 base_dir = 'luperson'
 # lmdb_dir = os.path.join('.', 'LUPerson', 'lmdb')
@@ -28,7 +28,7 @@ def load_json_keys(json_file):
         print(f"读取JSON文件失败: {e}")
         return set()
     
-keys_file = os.path.join('.', 'LUPerson', 'keys.pkl')
+keys_file = '/hy-tmp/LUPerson/LUPerson/LUPerson/keys.pkl'
 env = lmdb.open(lmdb_dir, readonly=True, lock=False)
 # keys = pickle.load(open(keys_file, "rb"))
 
