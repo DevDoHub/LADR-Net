@@ -35,3 +35,6 @@ __pycache__/
 *.pth
 *.pyc
 *.pyo
+/bert-base-uncased1/
+/bert-base-uncased2/
+/bert-base-uncased/
