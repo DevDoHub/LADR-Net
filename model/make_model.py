@@ -65,6 +65,54 @@ def weights_init_classifier(m):
         if m.bias:
             nn.init.constant_(m.bias, 0.0)
 
+class PromptLearner(nn.Module):
+    def __init__(self, num_class, dataset_name,  token_embedding, tokenize):
+        super().__init__()
+        if dataset_name == "VehicleID" or dataset_name == "veri":
+            ctx_init = "A photo of a X X X X vehicle."
+        else:
+            ctx_init = "A photo of a X X X X person."
+
+        ctx_dim = 768
+        # use given words to initialize context vectors
+        ctx_init = ctx_init.replace("_", " ")
+        n_ctx = 4
+        
+        tokenized_prompts = tokenize(ctx_init, truncation=True, padding='max_length', max_length=35, return_tensors="pt")
+        with torch.no_grad():
+            embedding = token_embedding(input_ids = tokenized_prompts['input_ids'])
+        self.tokenized_prompts = tokenized_prompts  # torch.Tensor
+
+        n_cls_ctx = 4
+        cls_vectors = torch.empty(num_class, n_cls_ctx, ctx_dim) 
+        nn.init.normal_(cls_vectors, std=0.02)
+        self.cls_ctx = nn.Parameter(cls_vectors) 
+
+        
+        # These token vectors will be saved when in save_model(),
+        # but they should be ignored in load_model() as we want to use
+        # those computed using the current class names
+        self.register_buffer("token_prefix", embedding[:, :n_ctx + 1, :])  
+        self.register_buffer("token_suffix", embedding[:, n_ctx + 1 + n_cls_ctx: , :])  
+        self.num_class = num_class
+        self.n_cls_ctx = n_cls_ctx
+
+    def forward(self, label):
+        cls_ctx = self.cls_ctx[label] 
+        b = label.shape[0]
+        prefix = self.token_prefix.expand(b, -1, -1) 
+        suffix = self.token_suffix.expand(b, -1, -1) 
+            
+        prompts = torch.cat(
+            [
+                prefix,  # (n_cls, 1, dim)
+                cls_ctx,     # (n_cls, n_ctx, dim)
+                suffix,  # (n_cls, *, dim)
+            ],
+            dim=1,
+        ) 
+
+        return prompts 
 
 class Backbone(nn.Module):
     def __init__(self, num_classes, cfg):
@@ -205,18 +253,18 @@ class build_transformer(nn.Module):
         self.tokenizer = BertTokenizer.from_pretrained('google-bert/bert-base-uncased', cache_dir=save_path)#TODO
         bert_config = BertConfig.from_json_file('./config_bert.json')
         self.text_encoder = BertForMaskedLM.from_pretrained('google-bert/bert-base-uncased', config=bert_config, cache_dir=save_path)
-
+        self.prompt_learner = PromptLearner(num_classes, dataset_name = 'market1501', token_embedding = self.text_encoder.bert.embeddings, tokenize = self.tokenizer)
         # self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')#TODO
         # bert_config = BertConfig.from_json_file('./config_bert.json')
         # self.text_encoder = BertForMaskedLM.from_pretrained('bert-base-uncased', config=bert_config)
 
         self.conv_layer = nn.Conv1d(in_channels=768, out_channels=1024, kernel_size=1)
 
-        self.TransReid = nn.Sequential(
-            Block(dim=1024, num_heads=16, qkv_bias=True),
-            Block(dim=1024, num_heads=16, qkv_bias=True),
-            Block(dim=1024, num_heads=16, qkv_bias=True)
-        )
+        # self.TransReid = nn.Sequential(
+        #     Block(dim=1024, num_heads=16, qkv_bias=True),
+        #     Block(dim=1024, num_heads=16, qkv_bias=True),
+        #     Block(dim=1024, num_heads=16, qkv_bias=True)
+        # )
 
         self.base = factory[cfg.MODEL.TRANSFORMER_TYPE](img_size=cfg.INPUT.SIZE_TRAIN, drop_path_rate=cfg.MODEL.DROP_PATH, drop_rate= cfg.MODEL.DROP_OUT,attn_drop_rate=cfg.MODEL.ATT_DROP_RATE, pretrained=model_path, convert_weights=convert_weights, semantic_weight=semantic_weight)
         if model_path != '':
@@ -261,12 +309,12 @@ class build_transformer(nn.Module):
             # if net_config.attn_type=='fc':
             # fusion_layers.append(nn.Linear(self.num_features, self.num_features))
             # else:
-        fusion_layers.append(self.TransReid)
-        self.fusion = nn.Sequential(*fusion_layers)
-        self.fusion_feat_bn = nn.BatchNorm1d(self.num_features)
-        self.fusion_feat_bn.bias.requires_grad_(False)
-        init.constant_(self.fusion_feat_bn.weight, 1)
-        init.constant_(self.fusion_feat_bn.bias, 0)
+        # fusion_layers.append(self.TransReid)
+        # self.fusion = nn.Sequential(*fusion_layers)
+        # self.fusion_feat_bn = nn.BatchNorm1d(self.num_features)
+        # self.fusion_feat_bn.bias.requires_grad_(False)
+        # init.constant_(self.fusion_feat_bn.weight, 1)
+        # init.constant_(self.fusion_feat_bn.bias, 0)
 
         self.feat_bn = nn.BatchNorm1d(self.num_features)
         self.feat_bn.bias.requires_grad_(False)
@@ -274,18 +322,25 @@ class build_transformer(nn.Module):
         init.constant_(self.feat_bn.bias, 0)
         #if pretrain_choice == 'self':
         #    self.load_param(model_path)
-    def dual_attn(self, bio_feats, clot_feats, project_feats=None, project_feats_down=None):
-        bio_class = bio_feats[:, 0:1]
-        clot_class = clot_feats[:, 0:1]
+    # def dual_attn(self, bio_feats, clot_feats, project_feats=None, project_feats_down=None):
+    #     bio_class = bio_feats[:, 0:1]
+    #     clot_class = clot_feats[:, 0:1]
         
-        bio_fusion = torch.cat([bio_class, clot_feats[:, 1:]], dim=1)
-        clot_fusion = torch.cat([clot_class, bio_feats[:, 1:]], dim=1)
+    #     bio_fusion = torch.cat([bio_class, clot_feats[:, 1:]], dim=1)
+    #     clot_fusion = torch.cat([clot_class, bio_feats[:, 1:]], dim=1)
 
-        bio_fusion = self.fusion(bio_fusion)
-        clot_fusion = self.fusion(clot_fusion)
-        return bio_fusion, clot_fusion
+    #     bio_fusion = self.fusion(bio_fusion)
+    #     clot_fusion = self.fusion(clot_fusion)
+    #     return bio_fusion, clot_fusion
 
-    def forward(self, x, instruction, label=None, cam_label= None, view_label=None):
+    def forward(self, x=None, instruction=None, label=None, cam_label= None, view_label=None, get_image=False, get_text=False):  # label is unused if self.cos_layer == 'no'
+        if get_image:
+            global_feat, featmaps = self.base(x)
+            return global_feat
+        if get_text:
+            prompts = self.prompt_learner(label) 
+            text_features = self.text_encoder.bert.encoder(prompts, self.prompt_learner.tokenized_prompts,)
+            return text_features         
         instruction_text = self.tokenizer(instruction, truncation=True, padding='max_length', max_length=35, return_tensors="pt").to('cuda')
         # extract text features
         instruction_text = instruction_text.to('cuda')
@@ -307,21 +362,21 @@ class build_transformer(nn.Module):
 
         image_embeds = torch.cat((global_feat.unsqueeze(1), local_feat_all), dim=1)#TODO
 
-        bio_fusion, clot_fusion = self.dual_attn(image_embeds, text_embeds_final)
+        # bio_fusion, clot_fusion = self.dual_attn(image_embeds, text_embeds_final)
 
         feat = self.feat_bn(global_feat)
-        bio_f = self.fusion_feat_bn(bio_fusion[:, 0])#TODO
-        clot_f = self.fusion_feat_bn(clot_fusion[:, 0])
+        # bio_f = self.fusion_feat_bn(bio_fusion[:, 0])#TODO
+        # clot_f = self.fusion_feat_bn(clot_fusion[:, 0])
 
         if self.reduce_feat_dim:
             logits = self.fcneck(global_feat)
 
-        bio_f = self.fusion_feat_bn(bio_fusion[:, 0])#TODO
-        clot_f = self.fusion_feat_bn(clot_fusion[:, 0])
+        # bio_f = self.fusion_feat_bn(bio_fusion[:, 0])#TODO
+        # clot_f = self.fusion_feat_bn(clot_fusion[:, 0])
         feat = self.bottleneck(global_feat)
         feat_cls = self.dropout(feat)
-        f_logits = self.classifier(bio_f)
-        c_logits = self.classifier(clot_f)
+        # f_logits = self.classifier(bio_f)
+        # c_logits = self.classifier(clot_f)
 
         if self.training:
             if self.ID_LOSS_TYPE in ('arcface', 'cosface', 'amsoftmax', 'circle'):
@@ -329,7 +384,7 @@ class build_transformer(nn.Module):
             else:
                 cls_score = self.classifier(feat_cls)
 
-            return global_feat, bio_f, clot_f, cls_score, f_logits, c_logits, featmaps, text_embeds_s# global feature for triplet loss
+            return global_feat, cls_score, featmaps, text_embeds_s# global feature for triplet loss
         #    return cls_score, global_feat, featmaps  # global feature for triplet loss  
         else:
             if self.neck_feat == 'after':
@@ -337,7 +392,7 @@ class build_transformer(nn.Module):
                 return feat, featmaps
             else:
                 # print("Test with feature before BN")
-                return global_feat, bio_f, clot_f, f_logits, c_logits, featmaps, text_embeds_s
+                return global_feat, featmaps, text_embeds_s
 
     def load_param(self, trained_path):
         param_dict = torch.load(trained_path, map_location = 'cpu')

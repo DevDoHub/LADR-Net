@@ -1,1 +1,2 @@
-from .processor import do_train, do_inference
+from .processor1 import do_train1
+from .processor2 import do_train2, do_inference

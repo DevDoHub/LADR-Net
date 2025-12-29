@@ -4,7 +4,7 @@ from model import make_model
 from solver import make_optimizer, WarmupMultiStepLR
 from solver.scheduler_factory import create_scheduler
 from loss import make_loss
-from processor import do_train
+from processor import do_train1, do_train2
 import random
 import torch
 import numpy as np
@@ -88,7 +88,7 @@ if __name__ == '__main__':
                                       cfg.SOLVER.WARMUP_FACTOR,
                                       cfg.SOLVER.WARMUP_EPOCHS, cfg.SOLVER.WARMUP_METHOD)
 
-    do_train(
+    do_train1(
         cfg,
         model,
         center_criterion,
@@ -100,3 +100,17 @@ if __name__ == '__main__':
         loss_func,
         num_query, args.local_rank
     )
+
+    do_train2(
+    cfg,
+    model,
+    center_criterion,
+    train_loader,
+    val_loader,
+    optimizer,
+    optimizer_center,
+    scheduler,
+    loss_func,
+    num_query, args.local_rank
+)
+

@@ -9,8 +9,9 @@ from utils.meter import AverageMeter
 from utils.metrics import R1_mAP_eval
 from torch.cuda import amp
 import torch.distributed as dist
+from loss.supcontrast import SupConLoss
 
-def do_train(cfg,
+def do_train1(cfg,
              model,
              center_criterion,
              train_loader,
@@ -43,31 +44,55 @@ def do_train(cfg,
     evaluator = R1_mAP_eval(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM, reranking=cfg.TEST.RE_RANKING)
     scaler = amp.GradScaler()
     # train
-
+    xent = SupConLoss(device)
     #TODO 写了个假的instruction
     
-    
-    for epoch in range(1, epochs + 1):
-        start_time = time.time()
-        loss_meter.reset()
-        acc_meter.reset()
-        evaluator.reset()
-        model.train()
-        n_iter_overall = 0
+    # train
+    import time
+    from datetime import timedelta
+    all_start_time = time.monotonic()
+    logger.info("model: {}".format(model))
+    image_features = []
+    labels = []
+    with torch.no_grad():
         for n_iter, (img, instruction, vid, target_cam, target_view) in enumerate(train_loader):
-            n_iter_overall += 1
-            optimizer.zero_grad()
-            optimizer_center.zero_grad()
             img = img.to(device)
             target = vid.to(device)
-            target_cam = target_cam.to(device)
-            target_view = target_view.to(device)
             with amp.autocast(enabled=True):
-                # batch = img.size(0)
-                # instruction = ('do_not_change_clothes',) * batch
-                # score, feat, _ = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
-                feat, bio_f, clot_f, score, f_logits, c_logits, _, text_embeds_s = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
-                loss = loss_fn(score, f_logits, c_logits, feat, bio_f, clot_f, target, text_embeds_s, target_cam)
+                image_feature = model(x=img, instruction=instruction, label=target, get_image = True)
+                for i, img_feat in zip(target, image_feature):
+                    labels.append(i)
+                    image_features.append(img_feat.cpu())
+        labels_list = torch.stack(labels, dim=0).cuda() #N
+        image_features_list = torch.stack(image_features, dim=0).cuda()
+
+        batch = cfg.SOLVER.IMS_PER_BATCH
+        num_image = labels_list.shape[0]
+        i_ter = num_image // batch
+    del labels, image_features
+
+    for epoch in range(1, epochs + 1):
+    # for epoch in range(1, 1 + 1):
+        loss_meter.reset()
+        scheduler.step(epoch)
+        model.train()
+
+        iter_list = torch.randperm(num_image).to(device)
+        for i in range(i_ter+1):
+            optimizer.zero_grad()
+            if i != i_ter:
+                b_list = iter_list[i*batch:(i+1)* batch]
+            else:
+                b_list = iter_list[i*batch:num_image]
+            
+            target = labels_list[b_list]
+            image_features = image_features_list[b_list]
+            with amp.autocast(enabled=True):
+                text_features = model(label = target, get_text = True)
+            loss_i2t = xent(image_features, text_features, target, target)
+            loss_t2i = xent(text_features, image_features, target, target)
+
+            loss = loss_i2t + loss_t2i
 
             scaler.scale(loss).backward()
 
@@ -157,45 +182,4 @@ def do_train(cfg,
                 for r in [1, 5, 10]:
                     logger.info("CMC curve, Rank-{:<3}:{:.1%}".format(r, cmc[r - 1]))
                 torch.cuda.empty_cache()
-
-def do_inference(cfg,
-                 model,
-                 val_loader,
-                 num_query):
-    device = "cuda"
-    logger = logging.getLogger("transreid.test")
-    logger.info("Enter inferencing")
-
-    evaluator = R1_mAP_eval(num_query, max_rank=50, feat_norm=cfg.TEST.FEAT_NORM, reranking=cfg.TEST.RE_RANKING)
-
-    evaluator.reset()
-
-    if device:
-        if torch.cuda.device_count() > 1:
-            print('Using {} GPUs for inference'.format(torch.cuda.device_count()))
-            model = nn.DataParallel(model)
-        model.to(device)
-
-    model.eval()
-    img_path_list = []
-
-    for n_iter, (img, instruction, pid, camid, camids, target_view, imgpath) in enumerate(val_loader):
-        with torch.no_grad():
-            img = img.to(device)
-            camids = camids.to(device)
-            target_view = target_view.to(device)
-            # feat , _ = model(img, cam_label=camids, view_label=target_view)
-            batch = img.size(0)
-            # = ('do_not_change_clothes',) * batch TODO
-            feat, bio_f, clot_f, score, f_logits, c_logits, _, text_embeds_s = model(img, instruction,  cam_label=camids, view_label=target_view )
-            evaluator.update((feat, pid, camid))
-            img_path_list.extend(imgpath)
-
-    cmc, mAP, _, _, _, _, _ = evaluator.compute()
-    logger.info("Validation Results ")
-    logger.info("mAP: {:.1%}".format(mAP))
-    for r in [1, 5, 10]:
-        logger.info("CMC curve, Rank-{:<3}:{:.1%}".format(r, cmc[r - 1]))
-    return cmc[0], cmc[4]
-
 
