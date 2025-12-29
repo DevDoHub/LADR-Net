@@ -338,9 +338,24 @@ class build_transformer(nn.Module):
             global_feat, featmaps = self.base(x)
             return global_feat
         if get_text:
-            prompts = self.prompt_learner(label) 
-            text_features = self.text_encoder.bert.encoder(prompts, self.prompt_learner.tokenized_prompts,)
-            return text_features         
+            prompts = self.prompt_learner(label)
+            # 1. 修复类型错误: 
+            # 原来的 self.prompt_learner.tokenized_prompts 是 BatchEncoding 类型，
+            # BERT encoder 需要 Tensor 类型的 mask，且需要转换为 extended_attention_mask (0/-10000) 格式
+            attention_mask = self.prompt_learner.tokenized_prompts['attention_mask'].to(prompts.device)
+            extended_attention_mask = self.text_encoder.bert.get_extended_attention_mask(attention_mask, attention_mask.shape, attention_mask.device, is_decoder=False)
+            # 2. 提取文本特征:
+            # mode='text' 确保只运行文本编码层，跳过跨模态融合层
+            text_features = self.text_encoder.bert.encoder(prompts, extended_attention_mask, mode='text')
+            # 3. 维度对齐 (768 -> 1024):
+            # BERT 输出是 768 维，但图像特征 (Swin) 是 1024 维。
+            # 使用 1x1 卷积 (self.conv_layer) 将文本特征投影到 1024 维以匹配图像特征维度
+            text_embeds = text_features[0]
+            text_embeds_reshaped = text_embeds.permute(0, 2, 1)
+            text_embeds_conv = self.conv_layer(text_embeds_reshaped)
+            text_embeds_final = text_embeds_conv.permute(0, 2, 1)
+            # 取 [CLS] token (索引0) 作为整个句子的全局特征
+            return text_embeds_final[:, 0, :]
         instruction_text = self.tokenizer(instruction, truncation=True, padding='max_length', max_length=35, return_tensors="pt").to('cuda')
         # extract text features
         instruction_text = instruction_text.to('cuda')

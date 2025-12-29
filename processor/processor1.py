@@ -73,22 +73,27 @@ def do_train1(cfg,
 
     for epoch in range(1, epochs + 1):
     # for epoch in range(1, 1 + 1):
+        start_time = time.time()
         loss_meter.reset()
+        evaluator.reset()
         scheduler.step(epoch)
         model.train()
 
         iter_list = torch.randperm(num_image).to(device)
-        for i in range(i_ter+1):
+        for i in range(i_ter):
             optimizer.zero_grad()
-            if i != i_ter:
-                b_list = iter_list[i*batch:(i+1)* batch]
-            else:
-                b_list = iter_list[i*batch:num_image]
+            b_list = iter_list[i*batch:(i+1)* batch]
             
             target = labels_list[b_list]
             image_features = image_features_list[b_list]
             with amp.autocast(enabled=True):
                 text_features = model(label = target, get_text = True)
+            
+            # SupConLoss 中的矩阵乘法或除法操作遇到了混合精度类型（Float 和 Half）
+            # 归一化并转换为 float32
+            image_features = nn.functional.normalize(image_features, dim=1).float()
+            text_features = nn.functional.normalize(text_features, dim=1).float()
+
             loss_i2t = xent(image_features, text_features, target, target)
             loss_t2i = xent(text_features, image_features, target, target)
 
@@ -104,29 +109,30 @@ def do_train1(cfg,
                     param.grad.data *= (1. / cfg.SOLVER.CENTER_LOSS_WEIGHT)
                 scaler.step(optimizer_center)
                 scaler.update()
-            if isinstance(score, list):
-                acc = (score[0].max(1)[1] == target).float().mean()
-            else:
-                acc = (score.max(1)[1] == target).float().mean()
+            
+            # 基于余弦相似度计算精度
+            logits = torch.matmul(image_features, text_features.T)
+            pred = logits.argmax(dim=1)
+            acc = (target[pred] == target).float().mean()
 
-            loss_meter.update(loss.item(), img.shape[0])
+            loss_meter.update(loss.item(), image_features.shape[0])
             acc_meter.update(acc, 1)
 
             torch.cuda.synchronize()
             if cfg.MODEL.DIST_TRAIN:
                 if dist.get_rank() == 0:
-                    if (n_iter + 1) % log_period == 0:
+                    if (i + 1) % log_period == 0:
                         base_lr = scheduler._get_lr(epoch)[0] if cfg.SOLVER.WARMUP_METHOD == 'cosine' else scheduler.get_lr()[0]
                         logger.info("Epoch[{}] Iter[{}/{}] Loss: {:.3f}, Acc: {:.3f}, Base Lr: {:.2e}"
-                                    .format(epoch, (n_iter + 1), len(train_loader), loss_meter.avg, acc_meter.avg, base_lr))
+                                    .format(epoch, (i + 1), i_ter, loss_meter.avg, acc_meter.avg, base_lr))
             else:
-                if (n_iter + 1) % log_period == 0:
+                if (i + 1) % log_period == 0:
                     base_lr = scheduler._get_lr(epoch)[0] if cfg.SOLVER.WARMUP_METHOD == 'cosine' else scheduler.get_lr()[0]
                     logger.info("Epoch[{}] Iter[{}/{}] Loss: {:.3f}, Acc: {:.3f}, Base Lr: {:.2e}"
-                                .format(epoch, (n_iter + 1), len(train_loader), loss_meter.avg, acc_meter.avg, base_lr))
+                                .format(epoch, (i + 1), i_ter, loss_meter.avg, acc_meter.avg, base_lr))
 
         end_time = time.time()
-        time_per_batch = (end_time - start_time) / (n_iter_overall + 1)
+        time_per_batch = (end_time - start_time) / (i_ter)
         if cfg.SOLVER.WARMUP_METHOD == 'cosine':
             scheduler.step(epoch)
         else:
@@ -135,7 +141,7 @@ def do_train1(cfg,
             pass
         else:
             logger.info("Epoch {} done. Time per epoch: {:.3f}[s] Speed: {:.1f}[samples/s]"
-                    .format(epoch, time_per_batch * (n_iter_overall + 1), train_loader.batch_size / time_per_batch))
+                    .format(epoch, time_per_batch * (i_ter), train_loader.batch_size / time_per_batch))
 
         if epoch % checkpoint_period == 0:
             if cfg.MODEL.DIST_TRAIN:
@@ -173,9 +179,9 @@ def do_train1(cfg,
                         #batch = img.size(0)
                         #instruction = ('do_not_change_clothes',) * batch
                         # feat, _ = model(img, cam_label=camids, view_label=target_view)
-                        feat, bio_f, clot_f, f_logits, c_logits, _, text_embeds_s = model(img, instruction, cam_label=camids, view_label=target_view )
-                        bio_clot_feat = torch.cat([bio_f, clot_f], dim=1)
-                        evaluator.update((bio_clot_feat, vid, camid))
+                        feat, _, text_embeds_s = model(img, instruction, cam_label=camids, view_label=target_view )
+                        # bio_clot_feat = torch.cat([bio_f, clot_f], dim=1)
+                        evaluator.update((feat, vid, camid))
                 cmc, mAP, _, _, _, _, _ = evaluator.compute()
                 logger.info("Validation Results - Epoch: {}".format(epoch))
                 logger.info("mAP: {:.1%}".format(mAP))
