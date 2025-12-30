@@ -71,6 +71,7 @@ if __name__ == '__main__':
 
 
     model = make_model(cfg, num_class=num_classes, camera_num=camera_num, view_num = view_num, semantic_weight = cfg.MODEL.SEMANTIC_WEIGHT)
+    model.load_param("./transformer_3.pth")
     with open("model_parameters.txt", "w") as f:
     # 使用 named_parameters() 获取模型的参数名称和参数本身
         for name, param in model.named_parameters():
