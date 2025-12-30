@@ -132,6 +132,10 @@ _C.DATALOADER.REMOVE_TAIL = 0
 # ---------------------------------------------------------------------------- #
 # Solver
 # ---------------------------------------------------------------------------- #
+_C.SOLVER1 = CN()
+_C.SOLVER1.MAX_EPOCHS = 100
+_C.SOLVER1.IMS_PER_BATCH = 64
+
 _C.SOLVER = CN()
 # Name of optimizer
 _C.SOLVER.OPTIMIZER_NAME = "Adam"

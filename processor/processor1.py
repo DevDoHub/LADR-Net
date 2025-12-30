@@ -27,7 +27,7 @@ def do_train1(cfg,
     # eval_period = 1#TODO
 
     device = "cuda"
-    epochs = cfg.SOLVER.MAX_EPOCHS
+    epochs = cfg.SOLVER1.MAX_EPOCHS
 
     logger = logging.getLogger("transreid.train")
     logger.info('start training')
@@ -66,7 +66,7 @@ def do_train1(cfg,
         labels_list = torch.stack(labels, dim=0).cuda() #N
         image_features_list = torch.stack(image_features, dim=0).cuda()
 
-        batch = cfg.SOLVER.IMS_PER_BATCH
+        batch = cfg.SOLVER1.IMS_PER_BATCH
         num_image = labels_list.shape[0]
         i_ter = num_image // batch
     del labels, image_features
@@ -143,49 +143,49 @@ def do_train1(cfg,
             logger.info("Epoch {} done. Time per epoch: {:.3f}[s] Speed: {:.1f}[samples/s]"
                     .format(epoch, time_per_batch * (i_ter), train_loader.batch_size / time_per_batch))
 
-        if epoch % checkpoint_period == 0:
-            if cfg.MODEL.DIST_TRAIN:
-                if dist.get_rank() == 0:
-                    torch.save(model.state_dict(),
-                               os.path.join(cfg.OUTPUT_DIR, cfg.MODEL.NAME + '_{}.pth'.format(epoch)))
-            else:
-                torch.save(model.state_dict(),
-                           os.path.join(cfg.OUTPUT_DIR, cfg.MODEL.NAME + '_{}.pth'.format(epoch)))
+        # if epoch % checkpoint_period == 0:
+        #     if cfg.MODEL.DIST_TRAIN:
+        #         if dist.get_rank() == 0:
+        #             torch.save(model.state_dict(),
+        #                        os.path.join(cfg.OUTPUT_DIR, cfg.MODEL.NAME + '_{}.pth'.format(epoch)))
+        #     else:
+        #         torch.save(model.state_dict(),
+        #                    os.path.join(cfg.OUTPUT_DIR, cfg.MODEL.NAME + '_{}.pth'.format(epoch)))
 
-        if epoch % eval_period == 0:
-            if cfg.MODEL.DIST_TRAIN:
-                if dist.get_rank() == 0:
-                    model.eval()
-                    for n_iter, (img, vid, camid, camids, target_view, _) in enumerate(val_loader):
-                        with torch.no_grad():
-                            img = img.to(device)
-                            camids = camids.to(device)
-                            target_view = target_view.to(device)
-                            feat, bio_f, clot_f, score, f_logits, c_logits, _, text_embeds_s = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
-                            evaluator.update((feat, vid, camid))
-                    cmc, mAP, _, _, _, _, _ = evaluator.compute()
-                    logger.info("Validation Results - Epoch: {}".format(epoch))
-                    logger.info("mAP: {:.1%}".format(mAP))
-                    for r in [1, 5, 10]:
-                        logger.info("CMC curve, Rank-{:<3}:{:.1%}".format(r, cmc[r - 1]))
-                    torch.cuda.empty_cache()
-            else:
-                model.eval()
-                for n_iter, (img, instruction, vid, camid, camids, target_view, _) in enumerate(val_loader):
-                    with torch.no_grad():
-                        img = img.to(device)
-                        camids = camids.to(device)
-                        target_view = target_view.to(device)
-                        #batch = img.size(0)
-                        #instruction = ('do_not_change_clothes',) * batch
-                        # feat, _ = model(img, cam_label=camids, view_label=target_view)
-                        feat, _, text_embeds_s = model(img, instruction, cam_label=camids, view_label=target_view )
-                        # bio_clot_feat = torch.cat([bio_f, clot_f], dim=1)
-                        evaluator.update((feat, vid, camid))
-                cmc, mAP, _, _, _, _, _ = evaluator.compute()
-                logger.info("Validation Results - Epoch: {}".format(epoch))
-                logger.info("mAP: {:.1%}".format(mAP))
-                for r in [1, 5, 10]:
-                    logger.info("CMC curve, Rank-{:<3}:{:.1%}".format(r, cmc[r - 1]))
-                torch.cuda.empty_cache()
+        # if epoch % eval_period == 0:
+        #     if cfg.MODEL.DIST_TRAIN:
+        #         if dist.get_rank() == 0:
+        #             model.eval()
+        #             for n_iter, (img, vid, camid, camids, target_view, _) in enumerate(val_loader):
+        #                 with torch.no_grad():
+        #                     img = img.to(device)
+        #                     camids = camids.to(device)
+        #                     target_view = target_view.to(device)
+        #                     feat, bio_f, clot_f, score, f_logits, c_logits, _, text_embeds_s = model(img, instruction, label=target, cam_label=target_cam, view_label=target_view )
+        #                     evaluator.update((feat, vid, camid))
+        #             cmc, mAP, _, _, _, _, _ = evaluator.compute()
+        #             logger.info("Validation Results - Epoch: {}".format(epoch))
+        #             logger.info("mAP: {:.1%}".format(mAP))
+        #             for r in [1, 5, 10]:
+        #                 logger.info("CMC curve, Rank-{:<3}:{:.1%}".format(r, cmc[r - 1]))
+        #             torch.cuda.empty_cache()
+        #     else:
+        #         model.eval()
+        #         for n_iter, (img, instruction, vid, camid, camids, target_view, _) in enumerate(val_loader):
+        #             with torch.no_grad():
+        #                 img = img.to(device)
+        #                 camids = camids.to(device)
+        #                 target_view = target_view.to(device)
+        #                 #batch = img.size(0)
+        #                 #instruction = ('do_not_change_clothes',) * batch
+        #                 # feat, _ = model(img, cam_label=camids, view_label=target_view)
+        #                 feat, _, text_embeds_s = model(img, instruction, cam_label=camids, view_label=target_view )
+        #                 # bio_clot_feat = torch.cat([bio_f, clot_f], dim=1)
+        #                 evaluator.update((feat, vid, camid))
+        #         cmc, mAP, _, _, _, _, _ = evaluator.compute()
+        #         logger.info("Validation Results - Epoch: {}".format(epoch))
+        #         logger.info("mAP: {:.1%}".format(mAP))
+        #         for r in [1, 5, 10]:
+        #             logger.info("CMC curve, Rank-{:<3}:{:.1%}".format(r, cmc[r - 1]))
+        #         torch.cuda.empty_cache()
 
